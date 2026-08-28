@@ -1,0 +1,19 @@
+[project]
+name = "opencompanion"
+version = "0.1.0"
+description = "Desk companion daemon for a spare Android phone running Termux"
+requires-python = ">=3.12"
+license = { text = "AGPL-3.0-or-later" }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# tests/ has no __init__.py, so the repo root needs to be on sys.path
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

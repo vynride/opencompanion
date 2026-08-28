@@ -1,0 +1,113 @@
+# Copy to config.yaml (gitignored) and fill in. Secrets go in .env.
+
+companion:
+  name: "Soc"           # what it calls itself; the face and prompt use it
+
+location:
+  name: "Somewhere"      # given to the model as its location (weather/time answers use it)
+  lat: 0.0
+  lon: 0.0
+  timezone: "UTC"        # IANA name, e.g. Europe/Paris
+
+face:
+  host: "127.0.0.1"      # keep on loopback: /ws has no authentication and carries transcripts and replies
+  port: 8080
+  open_browser: true     # am start the page on boot
+  browser_package: ""    # "" = the phone's default browser
+  tap_delay_s: 2.0       # wait this long after launching the browser before tapping
+  tap_xy: [360, 640]     # tap point in natural (portrait) coordinates; mapped through the current rotation
+
+audio:
+  rate: 16000
+  frame_ms: 80
+  # -d pins parec to the mic source; without it parec silently reads the sink monitor
+  capture_command: ["parec", "-d", "OpenSL_ES_source", "--raw", "--format=s16le", "--rate=16000", "--channels=1"]
+  # Termux: pulseaudio --start cannot detect an existing server, so run it as a child
+  pulse_start: ["pulseaudio", "--daemonize=no", "--load=module-sles-source", "--load=module-sles-sink", "--exit-idle-time=-1"]
+  # seconds of all-zero frames before the capture is treated as dead and restarted
+  silence_restart_s: 10
+
+wakeword:
+  model: "hey_jarvis"
+  threshold: 0.4          # raise if background noise triggers it, lower if soft speech is missed
+  refractory_s: 1.0
+  # Only run wake-word inference while speech is being heard, to save power; false = always on.
+  vad_gate: true
+  gate_hold_s: 1.5
+  preroll_ms: 480
+  # max 80 ms frames buffered before inference falling behind starts dropping them
+  max_queue: 100
+
+openai:
+  base_url: ""           # your OpenAI-compatible endpoint, e.g. https://host/v1
+  auth_header: "authorization"   # authorization | api-key: send the key as a Bearer token or in an api-key header
+  chat_model: ""
+  transcribe_model: ""
+  tts_model: ""
+  # Per-service overrides; unset ones fall back to the shared values above
+  # chat_base_url: ""
+  # chat_auth_header: "authorization"
+  # transcribe_base_url: ""
+  # transcribe_auth_header: "authorization"
+  # tts_base_url: ""
+  # tts_auth_header: "authorization"
+
+stt:
+  language: "en"
+  vad_aggressiveness: 3   # 0-3; higher classifies more ambient noise as non-speech
+  silence_ms: 700         # trailing silence that ends the turn once speech has started
+  max_ms: 8000            # hard cap on one utterance
+  min_ms: 300             # shorter recordings are dropped silently
+
+brain:
+  api: "chat"                 # "chat" = chat/completions, "responses" = the responses API
+  reasoning_effort: ""        # sent as-is when set (e.g. low); leave empty for models without it
+  vision: true                # send camera images to the chat model (needs image input)
+  max_turns: 20
+  session_reset_min: 30
+  max_tool_calls: 4
+  filler_after_s: 2.0
+  fillers: ["One moment.", "Let me check.", "Looking that up."]
+
+tts:
+  voice: ""              # a voice name your speech model accepts
+  speed: 1.0
+  instructions: ""       # optional delivery instructions, if the model supports them
+
+state:
+  idle_to_sleep_s: 300
+  error_hold_s: 3
+  happy_hold_s: 1
+  noticing_hold_s: 1.5   # how long a NOTICING reaction to a sense event holds before returning to IDLE
+  followup_s: 6.0        # seconds to keep listening after a reply, so a follow-up needs no wake word; 0 disables
+  listen_timeout_s: 14.0 # LISTENING falls back to IDLE after this long with no transcript; keep above stt.max_ms
+
+senses:
+  poll_s: 1.0
+  tap_threshold: 4.0     # m/s^2 jump between accelerometer samples
+  dark_lux: 5            # lux below which the screen dims and a light Sense is published
+  proximity_near_cm: 5.0 # below this reading the proximity sensor counts as "near"
+  dim_brightness: 10
+  normal_brightness: 80
+  sleep_brightness: 1    # backlight while SLEEPING; low but non-zero keeps the face visible without locking the screen
+  touch_device: ""       # substring of the getevent device name, e.g. "fingerprint"; empty disables
+  # substrings matched against the termux-sensor -l names
+  sensor_names:
+    proximity: "proximity"   # e.g. "alsprx" for a combined light/proximity chip
+    light: "light"
+    accel: "accelerometer"
+
+memory:
+  dir: "memory"
+  max_facts_lines: 150
+
+hosts:                   # used by check_host
+  laptop: "192.0.2.10:22"
+  timeout_s: 3.0          # socket connect timeout, seconds
+
+look:                    # used by the look/vision tool
+  max_px: 1024            # longest edge an image is downscaled to before sending it to the model
+
+search:
+  max_results: 3
+  max_chars: 1500
