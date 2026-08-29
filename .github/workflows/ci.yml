@@ -10,21 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install ruff
-      - run: ruff check opencompanion tests
-      - run: ruff format --check opencompanion tests
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff check opencompanion tests
+      - run: uvx ruff format --check opencompanion tests
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
-          cache: pip
+          enable-cache: true
+      - run: uv venv
       # openwakeword has no wheel for Python 3.12+; the tests stub it
-      - run: grep -v openwakeword requirements.txt | pip install -r /dev/stdin -r requirements-dev.txt
-      - run: pytest -q
+      - run: grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
+      - run: .venv/bin/pytest -q

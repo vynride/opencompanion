@@ -76,8 +76,8 @@ the daemon is running.
 ## Development
 
 ```
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+uv venv --python 3.12 .venv
+grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
 .venv/bin/pytest -q
 .venv/bin/ruff check opencompanion tests && .venv/bin/ruff format opencompanion tests
 ```
