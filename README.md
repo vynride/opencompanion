@@ -75,11 +75,29 @@ the daemon is running.
 
 ## Development
 
+Create the venv:
+
 ```
 uv venv --python 3.12 .venv
+```
+
+Install dependencies (openwakeword only runs on the phone):
+
+```
 grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
+```
+
+Run the tests:
+
+```
 .venv/bin/pytest -q
-.venv/bin/ruff check opencompanion tests && .venv/bin/ruff format opencompanion tests
+```
+
+Lint and format:
+
+```
+.venv/bin/ruff check opencompanion tests
+.venv/bin/ruff format opencompanion tests
 ```
 
 `python -m opencompanion.face_server --demo` shows the face in a desktop
