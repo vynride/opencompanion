@@ -85,3 +85,9 @@ python -m venv .venv
 `python -m opencompanion.face_server --demo` shows the face in a desktop
 browser.
 
+## License
+
+Copyright (C) 2026 Vivian Richard Demello (vynride)
+
+opencompanion is free software under the GNU Affero General Public License,
+version 3 or later. See [LICENSE](LICENSE).
