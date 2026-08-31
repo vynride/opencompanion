@@ -12,12 +12,12 @@ import io.github.vynride.opencompanion.core.config.SearchConfig
 import io.github.vynride.opencompanion.core.config.TtsConfig
 import io.github.vynride.opencompanion.core.config.WakeWordConfig
 
-/** Everything the settings screen edits, stored as plain preferences values. */
+/** Everything the settings screen edits, stored as plain preferences values. Null coordinates mean unset. */
 data class Settings(
     val companionName: String = "",
     val locationName: String = "",
-    val lat: Double = 0.0,
-    val lon: Double = 0.0,
+    val lat: Double? = null,
+    val lon: Double? = null,
     val timezone: String = "",
     val baseUrl: String = "",
     val apiKey: String = "",
@@ -46,8 +46,8 @@ object ConfigMapper {
             location =
             Location(
                 name = s.locationName.ifBlank { defaults.location.name },
-                lat = if (s.locationName.isBlank()) defaults.location.lat else s.lat,
-                lon = if (s.locationName.isBlank()) defaults.location.lon else s.lon,
+                lat = s.lat ?: defaults.location.lat,
+                lon = s.lon ?: defaults.location.lon,
                 timezone = s.timezone.ifBlank { defaults.location.timezone },
             ),
             api =

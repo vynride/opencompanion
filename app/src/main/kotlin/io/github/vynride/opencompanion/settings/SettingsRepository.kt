@@ -55,8 +55,8 @@ class SettingsRepository(
             Settings(
                 companionName = prefs[Keys.companionName] ?: "",
                 locationName = prefs[Keys.locationName] ?: "",
-                lat = prefs[Keys.lat] ?: 0.0,
-                lon = prefs[Keys.lon] ?: 0.0,
+                lat = prefs[Keys.lat],
+                lon = prefs[Keys.lon],
                 timezone = prefs[Keys.timezone] ?: "",
                 baseUrl = prefs[Keys.baseUrl] ?: "",
                 apiKey = prefs[Keys.apiKey] ?: "",

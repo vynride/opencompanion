@@ -4,13 +4,10 @@ package io.github.vynride.opencompanion.settings
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,8 +18,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -34,15 +32,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.github.vynride.opencompanion.R
@@ -82,13 +83,13 @@ fun SettingsScreen(repo: SettingsRepository) {
             )
             LabeledField(
                 label = stringResource(R.string.settings_lat),
-                value = settings.lat.toString(),
+                value = settings.lat?.toString() ?: "",
                 onChange = { it.toDoubleOrNull()?.let { v -> scope.launch { repo.setLat(v) } } },
                 keyboardType = KeyboardType.Decimal,
             )
             LabeledField(
                 label = stringResource(R.string.settings_lon),
-                value = settings.lon.toString(),
+                value = settings.lon?.toString() ?: "",
                 onChange = { it.toDoubleOrNull()?.let { v -> scope.launch { repo.setLon(v) } } },
                 keyboardType = KeyboardType.Decimal,
             )
@@ -146,20 +147,20 @@ fun SettingsScreen(repo: SettingsRepository) {
                 value = settings.voice,
                 onChange = { scope.launch { repo.setVoice(it) } },
             )
-            Text(stringResource(R.string.settings_speed) + ": ${"%.2f".format(settings.speed)}")
-            Slider(
+            LabeledSlider(
+                label = stringResource(R.string.settings_speed),
                 value = settings.speed,
-                onValueChange = { scope.launch { repo.setSpeed(it) } },
                 valueRange = 0.5f..2.0f,
+                onCommit = { scope.launch { repo.setSpeed(it) } },
             )
         }
 
         Group(stringResource(R.string.settings_group_wake_word)) {
-            Text(stringResource(R.string.settings_wake_threshold) + ": ${"%.2f".format(settings.wakeThreshold)}")
-            Slider(
+            LabeledSlider(
+                label = stringResource(R.string.settings_wake_threshold),
                 value = settings.wakeThreshold,
-                onValueChange = { scope.launch { repo.setWakeThreshold(it) } },
                 valueRange = 0.05f..0.95f,
+                onCommit = { scope.launch { repo.setWakeThreshold(it) } },
             )
             Text(
                 settings.wakeModelFile.ifBlank { stringResource(R.string.settings_wake_model_none) },
@@ -227,16 +228,14 @@ fun SettingsScreen(repo: SettingsRepository) {
     }
 }
 
-// Settings changes take effect the next time the service starts; restarting it here
+// Settings changes take effect the next time the companion is built; restarting it here
 // is the only way to apply them immediately, there is no live-reload path.
 private fun restartCompanion(context: Context) {
     val hasMic =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
-    val intent = Intent(context, CompanionService::class.java)
-    context.stopService(intent)
     if (hasMic) {
-        ContextCompat.startForegroundService(context, intent)
+        ContextCompat.startForegroundService(context, CompanionService.restartIntent(context))
     }
 }
 
@@ -284,23 +283,45 @@ private fun Group(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { content() }
 }
 
+/** Edits locally and persists once, on focus loss, so typing never hits the store per keystroke. */
 @Composable
 private fun LabeledField(
     label: String,
     value: String,
     onChange: (String) -> Unit,
     keyboardType: KeyboardType = KeyboardType.Text,
-    visualTransformation: androidx.compose.ui.text.input.VisualTransformation =
-        androidx.compose.ui.text.input.VisualTransformation.None,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
+    var text by remember(value) { mutableStateOf(value) }
     OutlinedTextField(
-        value = value,
-        onValueChange = onChange,
+        value = text,
+        onValueChange = { text = it },
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         visualTransformation = visualTransformation,
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .onFocusChanged { if (!it.isFocused && text != value) onChange(text) },
+    )
+}
+
+/** Drags locally and persists once, when the gesture ends. */
+@Composable
+private fun LabeledSlider(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    onCommit: (Float) -> Unit,
+) {
+    var position by remember(value) { mutableFloatStateOf(value) }
+    Text("$label: ${"%.2f".format(position)}")
+    Slider(
+        value = position,
+        onValueChange = { position = it },
+        onValueChangeFinished = { onCommit(position) },
+        valueRange = valueRange,
     )
 }
 
@@ -325,7 +346,11 @@ private fun Dropdown(
     onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = Modifier.fillMaxWidth()) {
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         OutlinedTextField(
             value = selected,
             onValueChange = {},
@@ -335,9 +360,9 @@ private fun Dropdown(
             modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable { expanded = true },
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
                 DropdownMenuItem(text = { Text(option) }, onClick = {
                     onSelect(option)

@@ -74,6 +74,26 @@ class ConfigMapperTest {
     }
 
     @Test
+    fun `coordinates without a location name still map`() {
+        val config = ConfigMapper.toConfig(Settings(lat = 12.97, lon = 77.59))
+        val defaults = CompanionConfig()
+
+        assertEquals(defaults.location.name, config.location.name)
+        assertEquals(12.97, config.location.lat)
+        assertEquals(77.59, config.location.lon)
+    }
+
+    @Test
+    fun `a location name without coordinates keeps the default coordinates`() {
+        val config = ConfigMapper.toConfig(Settings(locationName = "Somewhere"))
+        val defaults = CompanionConfig()
+
+        assertEquals("Somewhere", config.location.name)
+        assertEquals(defaults.location.lat, config.location.lat)
+        assertEquals(defaults.location.lon, config.location.lon)
+    }
+
+    @Test
     fun `speed and threshold clamp to their sane ranges`() {
         val tooFast = ConfigMapper.toConfig(Settings(speed = 9f))
         assertEquals(2.0, tooFast.tts.speed)

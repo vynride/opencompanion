@@ -37,7 +37,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.vynride.opencompanion.R
 import io.github.vynride.opencompanion.appGraph
-import io.github.vynride.opencompanion.settings.Settings
 import io.github.vynride.opencompanion.settings.SettingsActivity
 import kotlinx.coroutines.launch
 
@@ -73,16 +72,18 @@ fun PermissionGate(
         cameraGranted = granted(context, Manifest.permission.CAMERA)
     }
 
-    val settings by context.appGraph.settings.flow.collectAsState(initial = Settings())
+    val settings by context.appGraph.settings.flow.collectAsState(initial = null)
     val readyCalled = remember { mutableStateOf(false) }
 
     when {
+        settings == null -> Unit
+
         !micGranted ->
             MicDisclosure { granted ->
                 micGranted = granted
             }
 
-        !settings.cameraStepDone && !cameraGranted ->
+        settings?.cameraStepDone == false && !cameraGranted ->
             CameraDisclosure(
                 onGranted = { granted ->
                     cameraGranted = granted
