@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">opencompanion</string>
+    <string name="notification_channel_name">Companion</string>
+    <string name="notification_running">Listening for the wake word</string>
+    <string name="notification_stop">Stop</string>
+    <string name="mic_disclosure_title">Microphone access</string>
+    <string name="mic_disclosure_body">The companion listens continuously on this device to hear its wake word. Audio is processed on the phone; only what you say after the wake word is sent to the speech service you configured.</string>
+    <string name="camera_disclosure_body">The camera is used only when you ask the companion to look at something. You can skip this.</string>
+    <string name="grant_microphone">Allow microphone</string>
+    <string name="grant_camera">Allow camera</string>
+    <string name="skip">Skip</string>
 </resources>
