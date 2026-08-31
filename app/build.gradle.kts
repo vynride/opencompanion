@@ -64,6 +64,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
     testImplementation(libs.coroutines.test)
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:${kotlin.coreLibrariesVersion}")
 }
 
 tasks.withType<Test> {
