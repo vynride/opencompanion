@@ -25,28 +25,27 @@ class HttpStatusException(
     body: String,
 ) : IOException("HTTP $status: ${body.take(200)}")
 
-suspend fun OkHttpClient.await(request: Request): Response =
-    suspendCancellableCoroutine { cont ->
-        val call = newCall(request)
-        cont.invokeOnCancellation { call.cancel() }
-        call.enqueue(
-            object : Callback {
-                override fun onFailure(
-                    call: Call,
-                    e: IOException,
-                ) {
-                    cont.resumeWithException(e)
-                }
+suspend fun OkHttpClient.await(request: Request): Response = suspendCancellableCoroutine { cont ->
+    val call = newCall(request)
+    cont.invokeOnCancellation { call.cancel() }
+    call.enqueue(
+        object : Callback {
+            override fun onFailure(
+                call: Call,
+                e: IOException,
+            ) {
+                cont.resumeWithException(e)
+            }
 
-                override fun onResponse(
-                    call: Call,
-                    response: Response,
-                ) {
-                    cont.resume(response)
-                }
-            },
-        )
-    }
+            override fun onResponse(
+                call: Call,
+                response: Response,
+            ) {
+                cont.resume(response)
+            }
+        },
+    )
+}
 
 fun Response.requireSuccess(): Response {
     if (!isSuccessful) {

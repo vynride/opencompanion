@@ -14,15 +14,14 @@ class Tool(
     val parameters: JsonObject,
     val call: suspend (JsonObject) -> String,
 ) {
-    fun spec(): JsonObject =
-        buildJsonObject {
-            put("type", "function")
-            putJsonObject("function") {
-                put("name", name)
-                put("description", description)
-                put("parameters", parameters)
-            }
+    fun spec(): JsonObject = buildJsonObject {
+        put("type", "function")
+        putJsonObject("function") {
+            put("name", name)
+            put("description", description)
+            put("parameters", parameters)
         }
+    }
 }
 
 fun disabledTool(
@@ -34,27 +33,23 @@ fun disabledTool(
 fun objectSchema(
     vararg props: Pair<String, JsonObject>,
     required: List<String> = emptyList(),
-): JsonObject =
-    buildJsonObject {
-        put("type", "object")
-        putJsonObject("properties") { props.forEach { (k, v) -> put(k, v) } }
-        if (required.isNotEmpty()) putJsonArray("required") { required.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
-    }
+): JsonObject = buildJsonObject {
+    put("type", "object")
+    putJsonObject("properties") { props.forEach { (k, v) -> put(k, v) } }
+    if (required.isNotEmpty()) putJsonArray("required") { required.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
+}
 
-fun stringParam(description: String = ""): JsonObject =
-    buildJsonObject {
-        put("type", "string")
-        if (description.isNotEmpty()) put("description", description)
-    }
+fun stringParam(description: String = ""): JsonObject = buildJsonObject {
+    put("type", "string")
+    if (description.isNotEmpty()) put("description", description)
+}
 
-fun numberParam(description: String = ""): JsonObject =
-    buildJsonObject {
-        put("type", "number")
-        if (description.isNotEmpty()) put("description", description)
-    }
+fun numberParam(description: String = ""): JsonObject = buildJsonObject {
+    put("type", "number")
+    if (description.isNotEmpty()) put("description", description)
+}
 
-fun enumParam(vararg values: String): JsonObject =
-    buildJsonObject {
-        put("type", "string")
-        putJsonArray("enum") { values.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
-    }
+fun enumParam(vararg values: String): JsonObject = buildJsonObject {
+    put("type", "string")
+    putJsonArray("enum") { values.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
+}

@@ -67,121 +67,115 @@ class WakeWordDetectorTest {
     }
 
     @Test
-    fun `publishes wake above threshold then respects the refractory period`() =
-        runTest {
-            val h = Harness(backgroundScope, ScriptedPredictor(ArrayDeque(listOf(0.9f, 0.9f, 0.9f))))
-            // Scoring runs on Dispatchers.Default, so a collected mutableList races with real
-            // worker threads; await exactly the two expected events off the bus instead.
-            val collected =
-                async(start = CoroutineStart.UNDISPATCHED) {
-                    h.bus
-                        .on<Wake>()
-                        .take(2)
-                        .toList()
-                }
-            h.detector.process(frame(1))
-            h.now = 0.5.seconds
-            h.detector.process(frame(2))
-            h.now = 1.5.seconds
-            h.detector.process(frame(3))
-            assertEquals(2, collected.await().size)
-        }
+    fun `publishes wake above threshold then respects the refractory period`() = runTest {
+        val h = Harness(backgroundScope, ScriptedPredictor(ArrayDeque(listOf(0.9f, 0.9f, 0.9f))))
+        // Scoring runs on Dispatchers.Default, so a collected mutableList races with real
+        // worker threads; await exactly the two expected events off the bus instead.
+        val collected =
+            async(start = CoroutineStart.UNDISPATCHED) {
+                h.bus
+                    .on<Wake>()
+                    .take(2)
+                    .toList()
+            }
+        h.detector.process(frame(1))
+        h.now = 0.5.seconds
+        h.detector.process(frame(2))
+        h.now = 1.5.seconds
+        h.detector.process(frame(3))
+        assertEquals(2, collected.await().size)
+    }
 
     @Test
-    fun `does not run inference while not armed`() =
-        runTest {
-            val p = ScriptedPredictor(ArrayDeque(listOf(0.9f)))
-            val h = Harness(backgroundScope, p, armed = { false })
-            h.detector.process(frame(1))
-            assertEquals(0, p.seen.size)
-            assertEquals(0, h.wakes.size)
-        }
+    fun `does not run inference while not armed`() = runTest {
+        val p = ScriptedPredictor(ArrayDeque(listOf(0.9f)))
+        val h = Harness(backgroundScope, p, armed = { false })
+        h.detector.process(frame(1))
+        assertEquals(0, p.seen.size)
+        assertEquals(0, h.wakes.size)
+    }
 
     @Test
-    fun `gate parks frames without speech and replays a pre-roll when speech resumes`() =
-        runTest {
-            val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
-            val vad = ScriptedVad(ArrayDeque(listOf(false, false, false, false, true)))
-            val h = Harness(backgroundScope, p, vad)
-            h.now = 10.seconds
-            repeat(4) { h.detector.process(frame(it)) }
-            assertEquals(0, p.seen.size)
-            h.detector.process(frame(9))
-            assertEquals(listOf(1, 2, 3, 9), p.seen.map { it[0].toInt() })
-            assertEquals(1, p.resets)
-        }
+    fun `gate parks frames without speech and replays a pre-roll when speech resumes`() = runTest {
+        val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
+        val vad = ScriptedVad(ArrayDeque(listOf(false, false, false, false, true)))
+        val h = Harness(backgroundScope, p, vad)
+        h.now = 10.seconds
+        repeat(4) { h.detector.process(frame(it)) }
+        assertEquals(0, p.seen.size)
+        h.detector.process(frame(9))
+        assertEquals(listOf(1, 2, 3, 9), p.seen.map { it[0].toInt() })
+        assertEquals(1, p.resets)
+    }
 
     @Test
-    fun `gate keeps scoring during the hold after speech stops`() =
-        runTest {
-            val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
-            val vad = ScriptedVad(ArrayDeque(listOf(true, false, false)))
-            val h = Harness(backgroundScope, p, vad)
-            h.detector.process(frame(1))
-            h.now = 1.0.seconds
-            h.detector.process(frame(2))
-            h.now = 2.0.seconds
-            h.detector.process(frame(3))
-            assertEquals(listOf(1, 2), p.seen.map { it[0].toInt() })
-        }
+    fun `gate keeps scoring during the hold after speech stops`() = runTest {
+        val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
+        val vad = ScriptedVad(ArrayDeque(listOf(true, false, false)))
+        val h = Harness(backgroundScope, p, vad)
+        h.detector.process(frame(1))
+        h.now = 1.0.seconds
+        h.detector.process(frame(2))
+        h.now = 2.0.seconds
+        h.detector.process(frame(3))
+        assertEquals(listOf(1, 2), p.seen.map { it[0].toInt() })
+    }
 
     @Test
-    fun `a failing predictor counts as no detection`() =
-        runTest {
-            val failing =
-                object : WakePredictor {
-                    override fun score(frame: ShortArray): Float = error("nope")
+    fun `a failing predictor counts as no detection`() = runTest {
+        val failing =
+            object : WakePredictor {
+                override fun score(frame: ShortArray): Float = error("nope")
 
-                    override fun reset() {}
-                }
-            val h = Harness(backgroundScope, failing)
-            assertEquals(0f, h.detector.process(frame(1)))
-            assertEquals(0, h.wakes.size)
-        }
+                override fun reset() {}
+            }
+        val h = Harness(backgroundScope, failing)
+        assertEquals(0f, h.detector.process(frame(1)))
+        assertEquals(0, h.wakes.size)
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `drops and counts frames once the internal queue is full`() =
-        runTest {
-            val maxQueue = 4
-            // Blocks the worker's single in-flight score() call for the whole test, so frames
-            // queue up behind it instead of being drained.
-            val block = CountDownLatch(1)
-            val blockingPredictor =
-                object : WakePredictor {
-                    override fun score(frame: ShortArray): Float {
-                        block.await()
-                        return 0f
-                    }
-
-                    override fun reset() {}
+    fun `drops and counts frames once the internal queue is full`() = runTest {
+        val maxQueue = 4
+        // Blocks the worker's single in-flight score() call for the whole test, so frames
+        // queue up behind it instead of being drained.
+        val block = CountDownLatch(1)
+        val blockingPredictor =
+            object : WakePredictor {
+                override fun score(frame: ShortArray): Float {
+                    block.await()
+                    return 0f
                 }
-            val bus = EventBus()
-            val frames = MutableSharedFlow<ShortArray>(extraBufferCapacity = 16)
-            // Launched on the test's own scope, not backgroundScope: its collector's resumption
-            // after the first (UNDISPATCHED) suspension needs the standard test dispatcher to be
-            // driven by advanceUntilIdle(), which backgroundScope's jobs do not reliably get here.
-            val detector =
-                WakeWordDetector(
-                    bus,
-                    blockingPredictor,
-                    WakeWordConfig(maxQueue = maxQueue),
-                    { true },
-                    null,
-                    Log.Stdout,
-                    this,
-                ) { Duration.ZERO }
-            try {
-                detector.start(frames)
-                // The worker takes the very first frame directly off the channel (no receiver
-                // means no buffering for it), then blocks: that leaves room for exactly
-                // `maxQueue` more frames to buffer, so of maxQueue + 4 sent, 3 are dropped.
-                repeat(maxQueue + 4) { frames.emit(frame(it)) }
-                advanceUntilIdle()
-                assertEquals(3, detector.framesDropped)
-            } finally {
-                detector.stop()
-                block.countDown()
+
+                override fun reset() {}
             }
+        val bus = EventBus()
+        val frames = MutableSharedFlow<ShortArray>(extraBufferCapacity = 16)
+        // Launched on the test's own scope, not backgroundScope: its collector's resumption
+        // after the first (UNDISPATCHED) suspension needs the standard test dispatcher to be
+        // driven by advanceUntilIdle(), which backgroundScope's jobs do not reliably get here.
+        val detector =
+            WakeWordDetector(
+                bus,
+                blockingPredictor,
+                WakeWordConfig(maxQueue = maxQueue),
+                { true },
+                null,
+                Log.Stdout,
+                this,
+            ) { Duration.ZERO }
+        try {
+            detector.start(frames)
+            // The worker takes the very first frame directly off the channel (no receiver
+            // means no buffering for it), then blocks: that leaves room for exactly
+            // `maxQueue` more frames to buffer, so of maxQueue + 4 sent, 3 are dropped.
+            repeat(maxQueue + 4) { frames.emit(frame(it)) }
+            advanceUntilIdle()
+            assertEquals(3, detector.framesDropped)
+        } finally {
+            detector.stop()
+            block.countDown()
         }
+    }
 }

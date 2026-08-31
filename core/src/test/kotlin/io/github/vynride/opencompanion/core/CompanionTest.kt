@@ -52,106 +52,100 @@ class CompanionTest {
     )
 
     @Test
-    fun `starts without api keys and follows a turn through the states`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val input = FakeAudioInput()
-            val c = Companion(CompanionConfig(), ports(input), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c.start()
-            assertTrue(input.started)
-            c.bus.publish(Wake)
-            advanceUntilIdle()
-            assertEquals(State.LISTENING, c.state.value)
-            c.bus.publish(Transcript("hi"))
-            c.bus.publish(Reply("hello"))
-            advanceUntilIdle()
-            c.bus.publish(PlaybackDone)
-            advanceUntilIdle()
-            assertEquals(State.LISTENING, c.state.value)
-            c.stop()
-        }
+    fun `starts without api keys and follows a turn through the states`() = runTest(UnconfinedTestDispatcher()) {
+        val input = FakeAudioInput()
+        val c = Companion(CompanionConfig(), ports(input), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c.start()
+        assertTrue(input.started)
+        c.bus.publish(Wake)
+        advanceUntilIdle()
+        assertEquals(State.LISTENING, c.state.value)
+        c.bus.publish(Transcript("hi"))
+        c.bus.publish(Reply("hello"))
+        advanceUntilIdle()
+        c.bus.publish(PlaybackDone)
+        advanceUntilIdle()
+        assertEquals(State.LISTENING, c.state.value)
+        c.stop()
+    }
 
     @Test
-    fun `start twice throws`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val c = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c.start()
-            assertFailsWith<IllegalStateException> { c.start() }
-            c.stop()
-        }
+    fun `start twice throws`() = runTest(UnconfinedTestDispatcher()) {
+        val c = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c.start()
+        assertFailsWith<IllegalStateException> { c.start() }
+        c.stop()
+    }
 
     @Test
-    fun `stop leaves the parent scope alive`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val c1 = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c1.start()
-            c1.stop()
+    fun `stop leaves the parent scope alive`() = runTest(UnconfinedTestDispatcher()) {
+        val c1 = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c1.start()
+        c1.stop()
 
-            var ran = false
-            backgroundScope.launch { ran = true }
-            advanceUntilIdle()
-            assertTrue(ran)
-            assertTrue(backgroundScope.isActive)
+        var ran = false
+        backgroundScope.launch { ran = true }
+        advanceUntilIdle()
+        assertTrue(ran)
+        assertTrue(backgroundScope.isActive)
 
-            val c2 = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c2.start()
-            c2.bus.publish(Wake)
-            advanceUntilIdle()
-            assertEquals(State.LISTENING, c2.state.value)
-            c2.stop()
-        }
+        val c2 = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c2.start()
+        c2.bus.publish(Wake)
+        advanceUntilIdle()
+        assertEquals(State.LISTENING, c2.state.value)
+        c2.stop()
+    }
 
     @Test
-    fun `tool registry carries every wired tool`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val c = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c.start()
-            assertEquals(
-                listOf(
-                    "get_time",
-                    "set_timer",
-                    "remember",
-                    "recall",
-                    "weather",
-                    "web_search",
-                    "check_host",
-                    "laptop_notify",
-                    "laptop_clipboard",
-                    "laptop_notifications",
-                    "look",
-                ),
-                c.toolNames,
+    fun `tool registry carries every wired tool`() = runTest(UnconfinedTestDispatcher()) {
+        val c = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c.start()
+        assertEquals(
+            listOf(
+                "get_time",
+                "set_timer",
+                "remember",
+                "recall",
+                "weather",
+                "web_search",
+                "check_host",
+                "laptop_notify",
+                "laptop_clipboard",
+                "laptop_notifications",
+                "look",
+            ),
+            c.toolNames,
+        )
+        c.stop()
+    }
+
+    @Test
+    fun `look is absent without a camera`() = runTest(UnconfinedTestDispatcher()) {
+        val c = Companion(CompanionConfig(), ports(camera = null), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+        c.start()
+        assertTrue("look" !in c.toolNames)
+        c.stop()
+    }
+
+    @Test
+    fun `a full turn goes through the chat model onto the bus and into the journal`() = runTest(UnconfinedTestDispatcher()) {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"hello there"}}]}"""),
             )
-            c.stop()
-        }
-
-    @Test
-    fun `look is absent without a camera`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val c = Companion(CompanionConfig(), ports(camera = null), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-            c.start()
-            assertTrue("look" !in c.toolNames)
-            c.stop()
-        }
-
-    @Test
-    fun `a full turn goes through the chat model onto the bus and into the journal`() =
-        runTest(UnconfinedTestDispatcher()) {
-            MockWebServer().use { server ->
-                server.enqueue(
-                    MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"hello there"}}]}"""),
+            server.start()
+            val config =
+                CompanionConfig(
+                    api = ApiConfig(baseUrl = server.url("/v1").toString(), apiKey = "k", chatModel = "m"),
                 )
-                server.start()
-                val config =
-                    CompanionConfig(
-                        api = ApiConfig(baseUrl = server.url("/v1").toString(), apiKey = "k", chatModel = "m"),
-                    )
-                val c = Companion(config, ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
-                c.start()
-                val reply = async(start = CoroutineStart.UNDISPATCHED) { c.bus.on<Reply>().first() }
-                c.bus.publish(Transcript("hi"))
-                assertEquals("hello there", reply.await().text)
-                assertTrue("hello there" in c.memory.journalToday())
-                c.stop()
-            }
+            val c = Companion(config, ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+            c.start()
+            val reply = async(start = CoroutineStart.UNDISPATCHED) { c.bus.on<Reply>().first() }
+            c.bus.publish(Transcript("hi"))
+            assertEquals("hello there", reply.await().text)
+            assertTrue("hello there" in c.memory.journalToday())
+            c.stop()
         }
+    }
 }

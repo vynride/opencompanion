@@ -19,66 +19,63 @@ import kotlin.test.assertEquals
 
 class ChatClientTest {
     @Test
-    fun `chat api posts messages and tools and parses the assistant message`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(
-                    MockResponse(
-                        body = """{"choices":[{"message":{"role":"assistant","content":"hi","tool_calls":[
+    fun `chat api posts messages and tools and parses the assistant message`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse(
+                    body = """{"choices":[{"message":{"role":"assistant","content":"hi","tool_calls":[
                             {"id":"c1","type":"function","function":{"name":"get_time","arguments":"{}"}}]}}]}""",
-                    ),
-                )
-                server.start()
-                val client =
-                    ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "low", Log.Stdout)
-                val msg = client.chat(listOf(userMessage("hello")), listOf(Tool("get_time", "d", objectSchema()) { "" }.spec()))
-                assertEquals("hi", msg["content"]!!.jsonPrimitive.content)
-                assertEquals(1, msg["tool_calls"]!!.jsonArray.size)
-                val req = server.takeRequest()
-                assertEquals("/v1/chat/completions", req.url.encodedPath)
-                val body = json.parseToJsonElement(req.body!!.utf8()).jsonObject
-                assertEquals("m", body["model"]!!.jsonPrimitive.content)
-                assertEquals("auto", body["tool_choice"]!!.jsonPrimitive.content)
-                assertEquals("low", body["reasoning_effort"]!!.jsonPrimitive.content)
-            }
+                ),
+            )
+            server.start()
+            val client =
+                ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "low", Log.Stdout)
+            val msg = client.chat(listOf(userMessage("hello")), listOf(Tool("get_time", "d", objectSchema()) { "" }.spec()))
+            assertEquals("hi", msg["content"]!!.jsonPrimitive.content)
+            assertEquals(1, msg["tool_calls"]!!.jsonArray.size)
+            val req = server.takeRequest()
+            assertEquals("/v1/chat/completions", req.url.encodedPath)
+            val body = json.parseToJsonElement(req.body!!.utf8()).jsonObject
+            assertEquals("m", body["model"]!!.jsonPrimitive.content)
+            assertEquals("auto", body["tool_choice"]!!.jsonPrimitive.content)
+            assertEquals("low", body["reasoning_effort"]!!.jsonPrimitive.content)
         }
+    }
 
     @Test
-    fun `responses api posts instructions and flattened tools`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(body = """{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}"""))
-                server.start()
-                val client =
-                    ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.RESPONSES, "", Log.Stdout)
-                val msg =
-                    client.chat(
-                        listOf(systemMessage("be brief"), userMessage("q")),
-                        listOf(Tool("t", "d", objectSchema()) { "" }.spec()),
-                    )
-                assertEquals("ok", msg["content"]!!.jsonPrimitive.content)
-                val body = json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
-                assertEquals("be brief", body["instructions"]!!.jsonPrimitive.content)
-                assertEquals(
-                    "t",
-                    body["tools"]!!
-                        .jsonArray[0]
-                        .jsonObject["name"]!!
-                        .jsonPrimitive.content,
+    fun `responses api posts instructions and flattened tools`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(body = """{"output":[{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}"""))
+            server.start()
+            val client =
+                ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.RESPONSES, "", Log.Stdout)
+            val msg =
+                client.chat(
+                    listOf(systemMessage("be brief"), userMessage("q")),
+                    listOf(Tool("t", "d", objectSchema()) { "" }.spec()),
                 )
-            }
+            assertEquals("ok", msg["content"]!!.jsonPrimitive.content)
+            val body = json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("be brief", body["instructions"]!!.jsonPrimitive.content)
+            assertEquals(
+                "t",
+                body["tools"]!!
+                    .jsonArray[0]
+                    .jsonObject["name"]!!
+                    .jsonPrimitive.content,
+            )
         }
+    }
 
     @Test
-    fun `retries a 503 then succeeds`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(code = 503))
-                server.enqueue(MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"""))
-                server.start()
-                val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "", Log.Stdout)
-                assertEquals("ok", client.chat(listOf(userMessage("q")))["content"]!!.jsonPrimitive.content)
-                assertEquals(2, server.requestCount)
-            }
+    fun `retries a 503 then succeeds`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(code = 503))
+            server.enqueue(MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"""))
+            server.start()
+            val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "", Log.Stdout)
+            assertEquals("ok", client.chat(listOf(userMessage("q")))["content"]!!.jsonPrimitive.content)
+            assertEquals(2, server.requestCount)
         }
+    }
 }

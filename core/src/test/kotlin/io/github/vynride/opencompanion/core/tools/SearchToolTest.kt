@@ -47,45 +47,42 @@ class SearchToolTest {
     }
 
     @Test
-    fun `web_search posts the expected body`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(body = exaBody.toString()))
-                server.start()
-                val config = SearchConfig(maxResults = 3, maxChars = 1500, exaApiKey = "k")
-                val tools = searchTool(OkHttpClient(), config, server.url("/search").toString())
-                val text = tools.first().call(buildJsonObject { put("query", "desk companions") })
-                assertTrue(text.contains("https://example.com/b"))
-                val req = server.takeRequest()
-                assertEquals("k", req.headers["x-api-key"])
-                val body = json.parseToJsonElement(req.body!!.utf8()).jsonObject
-                assertEquals("desk companions", body["query"]!!.jsonPrimitive.content)
-                assertEquals(3, body["numResults"]!!.jsonPrimitive.content.toInt())
-                assertEquals(
-                    json.parseToJsonElement("""{"text":{"maxCharacters":1500}}""").jsonObject,
-                    body["contents"]!!.jsonObject,
-                )
-            }
+    fun `web_search posts the expected body`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(body = exaBody.toString()))
+            server.start()
+            val config = SearchConfig(maxResults = 3, maxChars = 1500, exaApiKey = "k")
+            val tools = searchTool(OkHttpClient(), config, server.url("/search").toString())
+            val text = tools.first().call(buildJsonObject { put("query", "desk companions") })
+            assertTrue(text.contains("https://example.com/b"))
+            val req = server.takeRequest()
+            assertEquals("k", req.headers["x-api-key"])
+            val body = json.parseToJsonElement(req.body!!.utf8()).jsonObject
+            assertEquals("desk companions", body["query"]!!.jsonPrimitive.content)
+            assertEquals(3, body["numResults"]!!.jsonPrimitive.content.toInt())
+            assertEquals(
+                json.parseToJsonElement("""{"text":{"maxCharacters":1500}}""").jsonObject,
+                body["contents"]!!.jsonObject,
+            )
         }
+    }
 
     @Test
-    fun `web_search disabled without key`() =
-        runTest {
-            val tools = searchTool(OkHttpClient(), SearchConfig())
-            assertEquals("web_search", tools.first().name)
-            assertTrue(tools.first().call(buildJsonObject { put("query", "x") }).contains("disabled"))
-        }
+    fun `web_search disabled without key`() = runTest {
+        val tools = searchTool(OkHttpClient(), SearchConfig())
+        assertEquals("web_search", tools.first().name)
+        assertTrue(tools.first().call(buildJsonObject { put("query", "x") }).contains("disabled"))
+    }
 
     @Test
-    fun `web_search reports http failure`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(code = 503))
-                server.start()
-                val config = SearchConfig(exaApiKey = "k")
-                val tools = searchTool(OkHttpClient(), config, server.url("/search").toString())
-                val text = tools.first().call(buildJsonObject { put("query", "x") })
-                assertTrue(text.startsWith("Search failed"))
-            }
+    fun `web_search reports http failure`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(code = 503))
+            server.start()
+            val config = SearchConfig(exaApiKey = "k")
+            val tools = searchTool(OkHttpClient(), config, server.url("/search").toString())
+            val text = tools.first().call(buildJsonObject { put("query", "x") })
+            assertTrue(text.startsWith("Search failed"))
         }
+    }
 }

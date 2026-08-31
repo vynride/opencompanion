@@ -40,9 +40,9 @@ class CompanionConfigTest {
         val cfg =
             CompanionConfig(
                 api =
-                    api.copy(
-                        transcribe = ServiceOverride(baseUrl = "https://other/v1", apiKey = "k2", authHeader = AuthHeader.API_KEY),
-                    ),
+                api.copy(
+                    transcribe = ServiceOverride(baseUrl = "https://other/v1", apiKey = "k2", authHeader = AuthHeader.API_KEY),
+                ),
             )
         val stt = cfg.service(ServiceKind.TRANSCRIBE)!!
         assertEquals("https://other/v1/audio/transcriptions", stt.url("audio/transcriptions"))

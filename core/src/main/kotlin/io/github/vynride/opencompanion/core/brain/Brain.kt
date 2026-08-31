@@ -195,17 +195,16 @@ class Brain(
     private suspend fun callWithFiller(
         name: String,
         args: JsonObject,
-    ): String =
-        coroutineScope {
-            val task = async { tools.call(name, args) }
-            select {
-                task.onAwait { it }
-                onTimeout(config.brain.fillerAfterS.seconds) {
-                    bus.publish(Say(config.brain.fillers.random()))
-                    task.await()
-                }
+    ): String = coroutineScope {
+        val task = async { tools.call(name, args) }
+        select {
+            task.onAwait { it }
+            onTimeout(config.brain.fillerAfterS.seconds) {
+                bus.publish(Say(config.brain.fillers.random()))
+                task.await()
             }
         }
+    }
 
     suspend fun askVision(
         question: String,

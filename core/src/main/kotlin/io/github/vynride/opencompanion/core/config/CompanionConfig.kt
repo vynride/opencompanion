@@ -23,11 +23,10 @@ data class Service(
         return if (query != null) "$url?$query" else url
     }
 
-    fun headers(): Map<String, String> =
-        when (authHeader) {
-            AuthHeader.API_KEY -> mapOf("api-key" to apiKey)
-            AuthHeader.AUTHORIZATION -> mapOf("Authorization" to "Bearer $apiKey")
-        }
+    fun headers(): Map<String, String> = when (authHeader) {
+        AuthHeader.API_KEY -> mapOf("api-key" to apiKey)
+        AuthHeader.AUTHORIZATION -> mapOf("Authorization" to "Bearer $apiKey")
+    }
 }
 
 data class ServiceOverride(

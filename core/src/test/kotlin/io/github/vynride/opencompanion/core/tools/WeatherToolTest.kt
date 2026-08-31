@@ -33,10 +33,9 @@ class WeatherToolTest {
                 """.trimIndent(),
             ).jsonObject
 
-    private fun sampleWithPastHours() =
-        json
-            .parseToJsonElement(
-                """
+    private fun sampleWithPastHours() = json
+        .parseToJsonElement(
+            """
                 {
                   "current": {"temperature_2m": 21.5, "weather_code": 3, "relative_humidity_2m": 60},
                   "hourly": {
@@ -49,8 +48,8 @@ class WeatherToolTest {
                     "weather_code": [3, 3, 3, 3, 3, 61, 61, 61, 3, 1, 1, 1, 1, 1]
                   }
                 }
-                """.trimIndent(),
-            ).jsonObject
+            """.trimIndent(),
+        ).jsonObject
 
     @Test
     fun `summarize reports now and the next hours`() {
@@ -72,30 +71,28 @@ class WeatherToolTest {
     }
 
     @Test
-    fun `weather tool hits open-meteo with configured coords`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(body = sample.toString()))
-                server.start()
-                val location = Location(lat = 1.5, lon = 2.5, timezone = "UTC")
-                val tools = weatherTool(OkHttpClient(), location, server.url("/v1/forecast").toString())
-                val text = tools.first().call(kotlinx.serialization.json.buildJsonObject {})
-                assertTrue(text.contains("Now:"))
-                val req = server.takeRequest()
-                assertEquals("1.5", req.url.queryParameter("latitude"))
-                assertEquals("2.5", req.url.queryParameter("longitude"))
-            }
+    fun `weather tool hits open-meteo with configured coords`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(body = sample.toString()))
+            server.start()
+            val location = Location(lat = 1.5, lon = 2.5, timezone = "UTC")
+            val tools = weatherTool(OkHttpClient(), location, server.url("/v1/forecast").toString())
+            val text = tools.first().call(kotlinx.serialization.json.buildJsonObject {})
+            assertTrue(text.contains("Now:"))
+            val req = server.takeRequest()
+            assertEquals("1.5", req.url.queryParameter("latitude"))
+            assertEquals("2.5", req.url.queryParameter("longitude"))
         }
+    }
 
     @Test
-    fun `weather tool reports failure`() =
-        runTest {
-            MockWebServer().use { server ->
-                server.enqueue(MockResponse(code = 500))
-                server.start()
-                val tools = weatherTool(OkHttpClient(), Location(), server.url("/v1/forecast").toString())
-                val text = tools.first().call(kotlinx.serialization.json.buildJsonObject {})
-                assertTrue(text.startsWith("Weather unavailable"))
-            }
+    fun `weather tool reports failure`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(code = 500))
+            server.start()
+            val tools = weatherTool(OkHttpClient(), Location(), server.url("/v1/forecast").toString())
+            val text = tools.first().call(kotlinx.serialization.json.buildJsonObject {})
+            assertTrue(text.startsWith("Weather unavailable"))
         }
+    }
 }

@@ -86,46 +86,45 @@ class Speaker(
     private suspend fun speakStreamed(
         synth: SpeechSynth,
         text: String,
-    ): Boolean =
-        coroutineScope {
-            val channel = Channel<ByteArray>(Channel.UNLIMITED)
-            val producer =
-                launch {
-                    try {
-                        synth.stream(text).collect { channel.send(it) }
-                        channel.close()
-                    } catch (e: IOException) {
-                        channel.close(e)
-                    }
-                }
-            val first =
+    ): Boolean = coroutineScope {
+        val channel = Channel<ByteArray>(Channel.UNLIMITED)
+        val producer =
+            launch {
                 try {
-                    channel.receive()
-                } catch (e: ClosedReceiveChannelException) {
-                    return@coroutineScope true
+                    synth.stream(text).collect { channel.send(it) }
+                    channel.close()
                 } catch (e: IOException) {
-                    log.error("tts", "speech stream failed for '${text.take(40)}'", e)
-                    return@coroutineScope false
+                    channel.close(e)
                 }
-            val mouth = StreamingMouth(rateHz, PCM_RATE)
-            val chunks =
-                flow {
-                    emit(first)
-                    try {
-                        for (c in channel) emit(c)
-                    } catch (e: IOException) {
-                        log.warn("tts", "stream ended mid-utterance", e)
-                    }
-                }.onEach { chunk -> mouth.push(chunk).forEach { bus.publish(Mouth(it)) } }
-            try {
-                output.playPcm(PCM_RATE, chunks)
-            } finally {
-                mouth.flush().forEach { bus.publish(Mouth(it)) }
-                bus.publish(Mouth(0f))
-                producer.cancel()
             }
-            true
+        val first =
+            try {
+                channel.receive()
+            } catch (e: ClosedReceiveChannelException) {
+                return@coroutineScope true
+            } catch (e: IOException) {
+                log.error("tts", "speech stream failed for '${text.take(40)}'", e)
+                return@coroutineScope false
+            }
+        val mouth = StreamingMouth(rateHz, PCM_RATE)
+        val chunks =
+            flow {
+                emit(first)
+                try {
+                    for (c in channel) emit(c)
+                } catch (e: IOException) {
+                    log.warn("tts", "stream ended mid-utterance", e)
+                }
+            }.onEach { chunk -> mouth.push(chunk).forEach { bus.publish(Mouth(it)) } }
+        try {
+            output.playPcm(PCM_RATE, chunks)
+        } finally {
+            mouth.flush().forEach { bus.publish(Mouth(it)) }
+            bus.publish(Mouth(0f))
+            producer.cancel()
         }
+        true
+    }
 
     /** Buffered fallback: synthesize the whole clip (WAV) then play it while replaying its envelope. */
     private suspend fun speakBuffered(

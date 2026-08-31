@@ -19,10 +19,9 @@ import kotlin.test.assertTrue
 class OpenWakeWordPipelineTest {
     private val store = RepoModelStore()
 
-    private fun keywordFile(): String? =
-        Path.of("..", "models", "wakeword").takeIf { Files.isDirectory(it) }?.let { dir ->
-            Files.list(dir).use { s -> s.filter { it.extension == "onnx" }.findFirst().orElse(null) }?.let { "wakeword/${it.name}" }
-        }
+    private fun keywordFile(): String? = Path.of("..", "models", "wakeword").takeIf { Files.isDirectory(it) }?.let { dir ->
+        Files.list(dir).use { s -> s.filter { it.extension == "onnx" }.findFirst().orElse(null) }?.let { "wakeword/${it.name}" }
+    }
 
     @Test
     fun `features stream and scores stay in range on silence`() {

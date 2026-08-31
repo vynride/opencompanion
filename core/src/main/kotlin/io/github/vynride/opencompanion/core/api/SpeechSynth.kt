@@ -76,16 +76,15 @@ class OpenAiSpeechSynth(
 
     override suspend fun synthesize(text: String): ByteArray = open(text, "wav").use { it.body.bytes() }
 
-    override fun stream(text: String): Flow<ByteArray> =
-        flow {
-            open(text, "pcm").use { response ->
-                val source = response.body.source()
-                val buf = ByteArray(STREAM_CHUNK_BYTES)
-                while (true) {
-                    val n = source.read(buf, 0, buf.size)
-                    if (n <= 0) break
-                    emit(buf.copyOf(n))
-                }
+    override fun stream(text: String): Flow<ByteArray> = flow {
+        open(text, "pcm").use { response ->
+            val source = response.body.source()
+            val buf = ByteArray(STREAM_CHUNK_BYTES)
+            while (true) {
+                val n = source.read(buf, 0, buf.size)
+                if (n <= 0) break
+                emit(buf.copyOf(n))
             }
-        }.flowOn(Dispatchers.IO)
+        }
+    }.flowOn(Dispatchers.IO)
 }

@@ -87,9 +87,8 @@ class OpenWakeWordPipeline(
 fun loadOpenWakeWord(
     models: ModelStore,
     keywordFile: String,
-): OpenWakeWordPipeline =
-    OpenWakeWordPipeline(
-        OnnxModel(models.read("melspectrogram.onnx")),
-        OnnxModel(models.read("embedding_model.onnx")),
-        OnnxModel(models.read(keywordFile)),
-    )
+): OpenWakeWordPipeline = OpenWakeWordPipeline(
+    OnnxModel(models.read("melspectrogram.onnx")),
+    OnnxModel(models.read("embedding_model.onnx")),
+    OnnxModel(models.read(keywordFile)),
+)

@@ -188,13 +188,12 @@ class Companion(
         log.info("companion", "stopped")
     }
 
-    private fun vad(threshold: Float): Vad =
-        try {
-            loadSileroVad(ports.models, threshold).also { closeables += it }
-        } catch (e: Exception) {
-            log.warn("companion", "silero vad unavailable; using energy vad", e)
-            EnergyVad()
-        }
+    private fun vad(threshold: Float): Vad = try {
+        loadSileroVad(ports.models, threshold).also { closeables += it }
+    } catch (e: Exception) {
+        log.warn("companion", "silero vad unavailable; using energy vad", e)
+        EnergyVad()
+    }
 
     private fun wakePredictor(): WakePredictor? {
         val file = config.wakeWord.modelFile

@@ -21,42 +21,39 @@ class HostToolTest {
     }
 
     @Test
-    fun `check_host reports up for a listening port`() =
-        runTest {
-            val server = ServerSocket(0)
-            try {
-                val port = server.localPort
-                val hosts = HostsConfig(mapOf("box" to "127.0.0.1:$port"))
-                val tool = hostTool(hosts).first { it.name == "check_host" }
-                val reply = tool.call(buildJsonObject { put("name", "box") })
-                assertTrue("box is up" in reply)
-            } finally {
-                server.close()
-            }
-        }
-
-    @Test
-    fun `check_host reports down for a closed port`() =
-        runTest {
-            val server = ServerSocket(0)
+    fun `check_host reports up for a listening port`() = runTest {
+        val server = ServerSocket(0)
+        try {
             val port = server.localPort
-            server.close()
-            val hosts = HostsConfig(mapOf("box" to "127.0.0.1:$port"), timeoutS = 0.5)
+            val hosts = HostsConfig(mapOf("box" to "127.0.0.1:$port"))
             val tool = hostTool(hosts).first { it.name == "check_host" }
             val reply = tool.call(buildJsonObject { put("name", "box") })
-            assertTrue("box is down" in reply)
+            assertTrue("box is up" in reply)
+        } finally {
+            server.close()
         }
+    }
 
     @Test
-    fun `check_host reports an unknown host with the known names list`() =
-        runTest {
-            val hosts = HostsConfig(mapOf("box" to "127.0.0.1:1"))
-            val tool = hostTool(hosts).first { it.name == "check_host" }
-            val reply = tool.call(buildJsonObject { put("name", "other") })
-            assertTrue("Unknown host" in reply)
-            assertTrue("box" in reply)
-            assertTrue("box" in tool.description)
-        }
+    fun `check_host reports down for a closed port`() = runTest {
+        val server = ServerSocket(0)
+        val port = server.localPort
+        server.close()
+        val hosts = HostsConfig(mapOf("box" to "127.0.0.1:$port"), timeoutS = 0.5)
+        val tool = hostTool(hosts).first { it.name == "check_host" }
+        val reply = tool.call(buildJsonObject { put("name", "box") })
+        assertTrue("box is down" in reply)
+    }
+
+    @Test
+    fun `check_host reports an unknown host with the known names list`() = runTest {
+        val hosts = HostsConfig(mapOf("box" to "127.0.0.1:1"))
+        val tool = hostTool(hosts).first { it.name == "check_host" }
+        val reply = tool.call(buildJsonObject { put("name", "other") })
+        assertTrue("Unknown host" in reply)
+        assertTrue("box" in reply)
+        assertTrue("box" in tool.description)
+    }
 
     @Test
     fun `describes no known hosts when the map is empty`() {

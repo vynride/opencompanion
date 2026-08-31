@@ -19,33 +19,29 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.Base64
 
-fun systemMessage(text: String): JsonObject =
-    buildJsonObject {
-        put("role", "system")
-        put("content", text)
-    }
+fun systemMessage(text: String): JsonObject = buildJsonObject {
+    put("role", "system")
+    put("content", text)
+}
 
-fun userMessage(text: String): JsonObject =
-    buildJsonObject {
-        put("role", "user")
-        put("content", text)
-    }
+fun userMessage(text: String): JsonObject = buildJsonObject {
+    put("role", "user")
+    put("content", text)
+}
 
-fun assistantMessage(text: String): JsonObject =
-    buildJsonObject {
-        put("role", "assistant")
-        put("content", text)
-    }
+fun assistantMessage(text: String): JsonObject = buildJsonObject {
+    put("role", "assistant")
+    put("content", text)
+}
 
 fun toolMessage(
     callId: String,
     content: String,
-): JsonObject =
-    buildJsonObject {
-        put("role", "tool")
-        put("tool_call_id", callId)
-        put("content", content)
-    }
+): JsonObject = buildJsonObject {
+    put("role", "tool")
+    put("tool_call_id", callId)
+    put("content", content)
+}
 
 fun imageMessage(
     question: String,
@@ -94,32 +90,31 @@ class ChatClient(
     private fun request(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
-    ): Pair<String, JsonObject> =
-        if (api == ChatApi.RESPONSES) {
-            val (instructions, items) = toResponses(messages)
-            service.url("responses") to
-                buildJsonObject {
-                    put("model", model)
-                    putJsonArray("input") { items.forEach { add(it) } }
-                    if (instructions.isNotEmpty()) put("instructions", instructions)
-                    if (!tools.isNullOrEmpty()) {
-                        putJsonArray("tools") { tools.forEach { add(flattenTool(it)) } }
-                        put("tool_choice", "auto")
-                    }
-                    if (reasoningEffort.isNotEmpty()) putJsonObject("reasoning") { put("effort", reasoningEffort) }
+    ): Pair<String, JsonObject> = if (api == ChatApi.RESPONSES) {
+        val (instructions, items) = toResponses(messages)
+        service.url("responses") to
+            buildJsonObject {
+                put("model", model)
+                putJsonArray("input") { items.forEach { add(it) } }
+                if (instructions.isNotEmpty()) put("instructions", instructions)
+                if (!tools.isNullOrEmpty()) {
+                    putJsonArray("tools") { tools.forEach { add(flattenTool(it)) } }
+                    put("tool_choice", "auto")
                 }
-        } else {
-            service.url("chat/completions") to
-                buildJsonObject {
-                    put("model", model)
-                    putJsonArray("messages") { messages.forEach { add(it) } }
-                    if (!tools.isNullOrEmpty()) {
-                        putJsonArray("tools") { tools.forEach { add(it) } }
-                        put("tool_choice", "auto")
-                    }
-                    if (reasoningEffort.isNotEmpty()) put("reasoning_effort", reasoningEffort)
+                if (reasoningEffort.isNotEmpty()) putJsonObject("reasoning") { put("effort", reasoningEffort) }
+            }
+    } else {
+        service.url("chat/completions") to
+            buildJsonObject {
+                put("model", model)
+                putJsonArray("messages") { messages.forEach { add(it) } }
+                if (!tools.isNullOrEmpty()) {
+                    putJsonArray("tools") { tools.forEach { add(it) } }
+                    put("tool_choice", "auto")
                 }
-        }
+                if (reasoningEffort.isNotEmpty()) put("reasoning_effort", reasoningEffort)
+            }
+    }
 
     private fun parse(data: JsonObject): JsonObject {
         if (api == ChatApi.RESPONSES) return parseResponses(data)

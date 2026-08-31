@@ -19,23 +19,22 @@ fun CoroutineScope.supervise(
     maxBackoff: Duration = 30.seconds,
     healthyAfter: Duration = 60.seconds,
     block: suspend () -> Unit,
-): Job =
-    launch {
-        var backoff = minBackoff
-        while (true) {
-            val started = TimeSource.Monotonic.markNow()
-            try {
-                block()
-                log.info(name, "finished; not restarting")
-                return@launch
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                log.error(name, "crashed", e)
-            }
-            if (started.elapsedNow() >= healthyAfter) backoff = minBackoff
-            log.warn(name, "restarting in $backoff")
-            delay(backoff)
-            backoff = minOf(backoff * 2, maxBackoff)
+): Job = launch {
+    var backoff = minBackoff
+    while (true) {
+        val started = TimeSource.Monotonic.markNow()
+        try {
+            block()
+            log.info(name, "finished; not restarting")
+            return@launch
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.error(name, "crashed", e)
         }
+        if (started.elapsedNow() >= healthyAfter) backoff = minBackoff
+        log.warn(name, "restarting in $backoff")
+        delay(backoff)
+        backoff = minOf(backoff * 2, maxBackoff)
     }
+}

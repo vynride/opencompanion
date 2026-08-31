@@ -21,23 +21,21 @@ class MemoryToolsTest {
     private fun memory() = Memory(dir, 150, FixedClock(Instant.parse("2026-08-28T00:00:00Z")))
 
     @Test
-    fun `remember saves a fact and confirms it`() =
-        runTest {
-            val tools = memoryTools(memory())
-            val reply = tools.first { it.name == "remember" }.call(buildJsonObject { put("text", "keys on the hook") })
-            assertTrue("Remembered" in reply)
-            assertTrue("keys on the hook" in reply)
-        }
+    fun `remember saves a fact and confirms it`() = runTest {
+        val tools = memoryTools(memory())
+        val reply = tools.first { it.name == "remember" }.call(buildJsonObject { put("text", "keys on the hook") })
+        assertTrue("Remembered" in reply)
+        assertTrue("keys on the hook" in reply)
+    }
 
     @Test
-    fun `recall finds a remembered fact and reports nothing for a miss`() =
-        runTest {
-            val mem = memory()
-            val tools = memoryTools(mem)
-            tools.first { it.name == "remember" }.call(buildJsonObject { put("text", "keys on the hook") })
-            val hit = tools.first { it.name == "recall" }.call(buildJsonObject { put("query", "keys") })
-            assertTrue("keys on the hook" in hit)
-            val miss = tools.first { it.name == "recall" }.call(buildJsonObject { put("query", "zebra") })
-            assertTrue("Nothing" in miss)
-        }
+    fun `recall finds a remembered fact and reports nothing for a miss`() = runTest {
+        val mem = memory()
+        val tools = memoryTools(mem)
+        tools.first { it.name == "remember" }.call(buildJsonObject { put("text", "keys on the hook") })
+        val hit = tools.first { it.name == "recall" }.call(buildJsonObject { put("query", "keys") })
+        assertTrue("keys on the hook" in hit)
+        val miss = tools.first { it.name == "recall" }.call(buildJsonObject { put("query", "zebra") })
+        assertTrue("Nothing" in miss)
+    }
 }

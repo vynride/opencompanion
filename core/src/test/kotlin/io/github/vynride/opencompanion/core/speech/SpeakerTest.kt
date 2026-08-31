@@ -44,11 +44,10 @@ class SpeakerTest {
             return wav
         }
 
-        override fun stream(text: String): Flow<ByteArray> =
-            flow {
-                if (streamFails) throw IOException("no stream")
-                streamChunks?.forEach { emit(it) }
-            }
+        override fun stream(text: String): Flow<ByteArray> = flow {
+            if (streamFails) throw IOException("no stream")
+            streamChunks?.forEach { emit(it) }
+        }
     }
 
     private class Harness(
@@ -66,86 +65,79 @@ class SpeakerTest {
     }
 
     @Test
-    fun `reply streams pcm, captions, moves the mouth and ends the turn`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, FakeSynth(streamChunks = listOf(pcm, pcm)))
-            h.speaker.speak("Hello there friend", endTurn = true)
-            assertEquals(1, h.output.played.size)
-            assertEquals(pcm.size * 2, h.output.played[0].size)
-            assertTrue(h.events.first() is Caption)
-            assertTrue(h.events.any { it is Mouth && it.level > 0f })
-            assertEquals(Mouth(0f), h.events.filterIsInstance<Mouth>().last())
-            assertTrue(h.events.last() is PlaybackDone)
-        }
+    fun `reply streams pcm, captions, moves the mouth and ends the turn`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, FakeSynth(streamChunks = listOf(pcm, pcm)))
+        h.speaker.speak("Hello there friend", endTurn = true)
+        assertEquals(1, h.output.played.size)
+        assertEquals(pcm.size * 2, h.output.played[0].size)
+        assertTrue(h.events.first() is Caption)
+        assertTrue(h.events.any { it is Mouth && it.level > 0f })
+        assertEquals(Mouth(0f), h.events.filterIsInstance<Mouth>().last())
+        assertTrue(h.events.last() is PlaybackDone)
+    }
 
     @Test
-    fun `stream failure falls back to buffered synthesis`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val synth = FakeSynth(streamFails = true)
-            val h = Harness(this, synth)
-            h.speaker.speak("hi", endTurn = true)
-            assertEquals(1, synth.synthCalls)
-            assertEquals(1, h.output.wavs.size)
-            assertTrue(h.events.last() is PlaybackDone)
-        }
+    fun `stream failure falls back to buffered synthesis`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth(streamFails = true)
+        val h = Harness(this, synth)
+        h.speaker.speak("hi", endTurn = true)
+        assertEquals(1, synth.synthCalls)
+        assertEquals(1, h.output.wavs.size)
+        assertTrue(h.events.last() is PlaybackDone)
+    }
 
     @Test
-    fun `say uses the buffered path and does not end a turn`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val synth = FakeSynth(streamChunks = listOf(pcm))
-            val h = Harness(this, synth)
-            h.speaker.handle(Say("One moment."))
-            assertEquals(1, synth.synthCalls)
-            assertTrue(h.events.none { it is PlaybackDone })
-            assertTrue(h.events.none { it is Caption })
-        }
+    fun `say uses the buffered path and does not end a turn`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth(streamChunks = listOf(pcm))
+        val h = Harness(this, synth)
+        h.speaker.handle(Say("One moment."))
+        assertEquals(1, synth.synthCalls)
+        assertTrue(h.events.none { it is PlaybackDone })
+        assertTrue(h.events.none { it is Caption })
+    }
 
     @Test
-    fun `failure event is voiced as an apology`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val synth = FakeSynth()
-            val h = Harness(this, synth)
-            h.speaker.handle(Failure("the chat model", "500"))
-            assertEquals(1, synth.synthCalls)
-        }
+    fun `failure event is voiced as an apology`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth()
+        val h = Harness(this, synth)
+        h.speaker.handle(Failure("the chat model", "500"))
+        assertEquals(1, synth.synthCalls)
+    }
 
     @Test
-    fun `without a synth a reply still ends the turn`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, null)
-            h.speaker.handle(Reply("hi"))
-            assertEquals(listOf<Event>(PlaybackDone), h.events)
-        }
+    fun `without a synth a reply still ends the turn`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, null)
+        h.speaker.handle(Reply("hi"))
+        assertEquals(listOf<Event>(PlaybackDone), h.events)
+    }
 
     @Test
-    fun `a throwing handler does not kill the collector`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val synth =
-                object : SpeechSynth {
-                    var calls = 0
+    fun `a throwing handler does not kill the collector`() = runTest(UnconfinedTestDispatcher()) {
+        val synth =
+            object : SpeechSynth {
+                var calls = 0
 
-                    override suspend fun synthesize(text: String): ByteArray {
-                        calls++
-                        require(text != "bad") { "malformed audio" }
-                        return wavBytes(ShortArray(160) { 100 }, 16000)
-                    }
-
-                    override fun stream(text: String): Flow<ByteArray> = flow {}
+                override suspend fun synthesize(text: String): ByteArray {
+                    calls++
+                    require(text != "bad") { "malformed audio" }
+                    return wavBytes(ShortArray(160) { 100 }, 16000)
                 }
-            val h = Harness(this, synth)
-            h.speaker.start()
-            h.bus.publish(Say("bad"))
-            h.bus.publish(Say("good"))
-            assertEquals(2, synth.calls)
-            h.speaker.stop()
-        }
+
+                override fun stream(text: String): Flow<ByteArray> = flow {}
+            }
+        val h = Harness(this, synth)
+        h.speaker.start()
+        h.bus.publish(Say("bad"))
+        h.bus.publish(Say("good"))
+        assertEquals(2, synth.calls)
+        h.speaker.stop()
+    }
 
     @Test
-    fun `blank text is skipped`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val synth = FakeSynth()
-            val h = Harness(this, synth)
-            h.speaker.speak("   ", endTurn = false)
-            assertEquals(0, synth.synthCalls)
-        }
+    fun `blank text is skipped`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth()
+        val h = Harness(this, synth)
+        h.speaker.speak("   ", endTurn = false)
+        assertEquals(0, synth.synthCalls)
+    }
 }

@@ -65,67 +65,61 @@ class ListenerTest {
     private val frame = ShortArray(FRAME_SAMPLES) { 100 }
 
     @Test
-    fun `wake records until silence and publishes the transcript`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, ScriptedVad(true, true, false, false), Transcriber { "hello there" })
-            h.listener.handle(Wake)
-            repeat(4) { h.input.emit(frame) }
-            assertEquals(listOf("hello there"), h.transcripts)
-        }
+    fun `wake records until silence and publishes the transcript`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(true, true, false, false), Transcriber { "hello there" })
+        h.listener.handle(Wake)
+        repeat(4) { h.input.emit(frame) }
+        assertEquals(listOf("hello there"), h.transcripts)
+    }
 
     @Test
-    fun `too little speech publishes an empty transcript`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, ScriptedVad(), Transcriber { "never" })
-            h.listener.handle(Wake)
-            repeat(12) { h.input.emit(frame) }
-            assertEquals(listOf(""), h.transcripts)
-        }
+    fun `too little speech publishes an empty transcript`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(), Transcriber { "never" })
+        h.listener.handle(Wake)
+        repeat(12) { h.input.emit(frame) }
+        assertEquals(listOf(""), h.transcripts)
+    }
 
     @Test
-    fun `transcription failure publishes a failure event`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, ScriptedVad(true, true, false, false), Transcriber { throw IOException("down") })
-            h.listener.handle(Wake)
-            repeat(4) { h.input.emit(frame) }
-            assertEquals(listOf("transcription"), h.failures.map { it.source })
-            assertEquals(0, h.transcripts.size)
-        }
+    fun `transcription failure publishes a failure event`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(true, true, false, false), Transcriber { throw IOException("down") })
+        h.listener.handle(Wake)
+        repeat(4) { h.input.emit(frame) }
+        assertEquals(listOf("transcription"), h.failures.map { it.source })
+        assertEquals(0, h.transcripts.size)
+    }
 
     @Test
-    fun `playback done opens a follow-up that stays quiet when nobody speaks`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, ScriptedVad(), Transcriber { "never" }, followupS = 0.16)
-            h.listener.handle(PlaybackDone)
-            repeat(3) { h.input.emit(frame) }
-            assertEquals(0, h.transcripts.size)
-        }
+    fun `playback done opens a follow-up that stays quiet when nobody speaks`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(), Transcriber { "never" }, followupS = 0.16)
+        h.listener.handle(PlaybackDone)
+        repeat(3) { h.input.emit(frame) }
+        assertEquals(0, h.transcripts.size)
+    }
 
     @Test
-    fun `a second wake during a turn is ignored`() =
-        runTest(UnconfinedTestDispatcher()) {
-            var calls = 0
-            val h =
-                Harness(
-                    this,
-                    ScriptedVad(true, true, false, false, true, true, false, false),
-                    Transcriber {
-                        calls++
-                        "x"
-                    },
-                )
-            h.listener.handle(Wake)
-            h.listener.handle(Wake)
-            repeat(4) { h.input.emit(frame) }
-            assertEquals(1, calls)
-        }
+    fun `a second wake during a turn is ignored`() = runTest(UnconfinedTestDispatcher()) {
+        var calls = 0
+        val h =
+            Harness(
+                this,
+                ScriptedVad(true, true, false, false, true, true, false, false),
+                Transcriber {
+                    calls++
+                    "x"
+                },
+            )
+        h.listener.handle(Wake)
+        h.listener.handle(Wake)
+        repeat(4) { h.input.emit(frame) }
+        assertEquals(1, calls)
+    }
 
     @Test
-    fun `no transcriber drops audio with an empty transcript`() =
-        runTest(UnconfinedTestDispatcher()) {
-            val h = Harness(this, ScriptedVad(true, true, false, false), null)
-            h.listener.handle(Wake)
-            repeat(4) { h.input.emit(frame) }
-            assertEquals(listOf(""), h.transcripts)
-        }
+    fun `no transcriber drops audio with an empty transcript`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(true, true, false, false), null)
+        h.listener.handle(Wake)
+        repeat(4) { h.input.emit(frame) }
+        assertEquals(listOf(""), h.transcripts)
+    }
 }

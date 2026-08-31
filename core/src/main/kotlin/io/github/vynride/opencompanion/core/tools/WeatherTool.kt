@@ -100,15 +100,14 @@ fun weatherTool(
     http: OkHttpClient,
     location: Location,
     baseUrl: String = OPEN_METEO_URL,
-): List<Tool> =
-    listOf(
-        Tool("weather", "Current weather and the next six hours at the configured location.", objectSchema()) {
-            try {
-                summarizeWeather(fetchWeather(http, baseUrl, location.lat, location.lon, location.timezone))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                "Weather unavailable: ${e.message}"
-            }
-        },
-    )
+): List<Tool> = listOf(
+    Tool("weather", "Current weather and the next six hours at the configured location.", objectSchema()) {
+        try {
+            summarizeWeather(fetchWeather(http, baseUrl, location.lat, location.lon, location.timezone))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            "Weather unavailable: ${e.message}"
+        }
+    },
+)
