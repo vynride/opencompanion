@@ -43,6 +43,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(libs.okhttp)
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
     implementation(libs.onnxruntime.android)
