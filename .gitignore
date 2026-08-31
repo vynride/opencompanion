@@ -19,6 +19,12 @@ local.properties
 *.iml
 captures/
 
+# python (removed with the daemon later)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
 # local notes and agent scratch
 .notes/
 .superpowers/
