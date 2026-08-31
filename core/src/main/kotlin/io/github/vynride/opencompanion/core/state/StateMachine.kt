@@ -14,6 +14,7 @@ import io.github.vynride.opencompanion.core.bus.TimerDone
 import io.github.vynride.opencompanion.core.bus.Transcript
 import io.github.vynride.opencompanion.core.bus.Wake
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +53,7 @@ class StateMachine(
     fun isArmed(): Boolean = _state.value in WAKE_STATES
 
     fun start() {
-        wiring = scope.launch { bus.events.collect { handle(it) } }
+        wiring = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { handle(it) } }
         armSleepTimer()
     }
 
@@ -91,6 +92,8 @@ class StateMachine(
         sleepJob =
             scope.launch {
                 delay(config.idleToSleepS.seconds)
+                // Detach before transitioning so the rearm inside set() cannot cancel this coroutine.
+                sleepJob = null
                 if (_state.value == State.IDLE) set(State.SLEEPING)
             }
     }

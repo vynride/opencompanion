@@ -107,6 +107,7 @@ class StateMachineTest {
             h.sm.start()
             advanceTimeBy(60)
             assertEquals(State.SLEEPING, h.sm.state.value)
+            assertEquals(listOf(State.SLEEPING), h.changes)
             h.sm.handle(Wake)
             assertEquals(State.LISTENING, h.sm.state.value)
         }
