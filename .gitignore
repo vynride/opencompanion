@@ -11,6 +11,7 @@ phone-data/
 # gradle / android
 .gradle/
 build/
+bin/
 local.properties
 *.apk
 *.aab
