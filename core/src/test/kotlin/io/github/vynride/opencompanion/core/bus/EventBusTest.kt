@@ -4,6 +4,7 @@ package io.github.vynride.opencompanion.core.bus
 
 import io.github.vynride.opencompanion.core.state.State
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -11,6 +12,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class EventBusTest {
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -28,10 +30,15 @@ class EventBusTest {
             assertEquals(listOf(Transcript("one"), Transcript("two")), seen)
         }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `publish does not block when nobody listens`() =
-        runTest {
-            val bus = EventBus()
-            repeat(1000) { bus.publish(Mouth(0.5f)) }
+    fun `publish does not suspend while the buffer has room`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val bus = EventBus(bufferSize = 8)
+            val slow = launch { bus.events.collect { delay(1_000) } }
+            val publishing = launch { repeat(8) { bus.publish(Mouth(0.5f)) } }
+            assertTrue(publishing.isCompleted)
+            assertEquals(0L, testScheduler.currentTime)
+            slow.cancel()
         }
 }
