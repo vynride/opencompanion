@@ -2,6 +2,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.settings
 
+import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
+import io.github.vynride.opencompanion.appGraph
 
-class SettingsActivity : ComponentActivity()
+class SettingsActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val repo = appGraph.settings
+        setContent {
+            MaterialTheme {
+                Surface(modifier = Modifier) {
+                    SettingsScreen(repo)
+                }
+            }
+        }
+    }
+}

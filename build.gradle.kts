@@ -10,7 +10,9 @@ spotless {
     kotlin {
         target("**/*.kt")
         targetExclude("**/build/**")
-        ktlint()
+        ktlint().editorConfigOverride(
+            mapOf("ktlint_function_naming_ignore_when_annotated_with" to "Composable"),
+        )
         licenseHeader(
             "// Copyright (C) 2026 Vivian Richard Demello (vynride)\n// SPDX-License-Identifier: AGPL-3.0-or-later\n",
             "^(package|import|@file)",

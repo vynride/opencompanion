@@ -10,4 +10,51 @@
     <string name="grant_microphone">Allow microphone</string>
     <string name="grant_camera">Allow camera</string>
     <string name="skip">Skip</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_group_companion">Companion</string>
+    <string name="settings_companion_name">Name</string>
+    <string name="settings_edit_personality">Edit personality</string>
+    <string name="settings_personality_title">Personality</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_cancel">Cancel</string>
+
+    <string name="settings_group_location">Location</string>
+    <string name="settings_location_name">Location name</string>
+    <string name="settings_lat">Latitude</string>
+    <string name="settings_lon">Longitude</string>
+    <string name="settings_timezone">Timezone</string>
+
+    <string name="settings_group_api">API</string>
+    <string name="settings_base_url">Base URL</string>
+    <string name="settings_api_key">API key</string>
+    <string name="settings_auth_header">Auth header</string>
+    <string name="settings_chat_model">Chat model</string>
+    <string name="settings_transcribe_model">Transcribe model</string>
+    <string name="settings_tts_model">TTS model</string>
+    <string name="settings_chat_api">API style</string>
+
+    <string name="settings_group_voice">Voice</string>
+    <string name="settings_voice">Voice</string>
+    <string name="settings_speed">Speed</string>
+
+    <string name="settings_group_wake_word">Wake word</string>
+    <string name="settings_wake_threshold">Threshold</string>
+    <string name="settings_wake_model_file">Model file</string>
+    <string name="settings_wake_model_none">None selected</string>
+    <string name="settings_import_model">Import model</string>
+
+    <string name="settings_group_extras">Extras</string>
+    <string name="settings_exa_key">Exa key</string>
+    <string name="settings_laptop_host">Laptop host</string>
+    <string name="settings_camera_enabled">Camera</string>
+
+    <string name="settings_group_device">Device</string>
+    <string name="settings_use_as_home">Use as home screen</string>
+    <string name="settings_pin_screen">Pin screen</string>
+    <string name="settings_restart_companion">Restart companion</string>
+
+    <string name="settings_group_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_licence">AGPL-3.0-or-later</string>
 </resources>

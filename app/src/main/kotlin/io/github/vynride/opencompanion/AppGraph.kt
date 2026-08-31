@@ -5,6 +5,7 @@ package io.github.vynride.opencompanion
 import android.content.Context
 import io.github.vynride.opencompanion.core.Level
 import io.github.vynride.opencompanion.core.Log
+import io.github.vynride.opencompanion.settings.SettingsRepository
 import android.util.Log as AndroidLog
 
 class AppGraph(
@@ -20,4 +21,6 @@ class AppGraph(
                 Level.ERROR -> AndroidLog.e(t, message, error)
             }
         }
+
+    val settings = SettingsRepository(context)
 }
