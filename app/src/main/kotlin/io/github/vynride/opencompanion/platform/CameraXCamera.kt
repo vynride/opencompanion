@@ -62,7 +62,16 @@ class CameraXCamera(
     private suspend fun awaitCameraProvider(): ProcessCameraProvider =
         suspendCancellableCoroutine { cont ->
             val future = ProcessCameraProvider.getInstance(context)
-            future.addListener({ cont.resume(future.get()) }, ContextCompat.getMainExecutor(context))
+            future.addListener({
+                val provider =
+                    try {
+                        future.get()
+                    } catch (e: Exception) {
+                        if (cont.isActive) cont.resumeWithException(e)
+                        return@addListener
+                    }
+                if (cont.isActive) cont.resume(provider)
+            }, ContextCompat.getMainExecutor(context))
             cont.invokeOnCancellation { future.cancel(false) }
         }
 
@@ -82,8 +91,6 @@ class CameraXCamera(
                     }
                 },
             )
-            // No in-flight cancel API on ImageCapture; the caller's finally unbinds the use case.
-            cont.invokeOnCancellation { }
         }
 
     private fun Lens.toCameraSelector(): CameraSelector =
