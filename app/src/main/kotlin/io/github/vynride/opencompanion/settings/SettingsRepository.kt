@@ -131,13 +131,14 @@ class SettingsRepository(
         resolver: ContentResolver,
     ): String {
         val displayName = queryDisplayName(uri, resolver) ?: "wakeword.onnx"
+        val safeName = File(displayName).name.ifBlank { "wakeword.onnx" }
         val dir = File(context.filesDir, "models/wakeword").apply { mkdirs() }
-        val dest = File(dir, displayName)
+        val dest = File(dir, safeName)
         resolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "cannot open $uri" }
             dest.outputStream().use { output -> input.copyTo(output) }
         }
-        val stored = "wakeword/$displayName"
+        val stored = "wakeword/$safeName"
         update { it[Keys.wakeModelFile] = stored }
         return stored
     }

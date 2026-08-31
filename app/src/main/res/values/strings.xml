@@ -40,7 +40,6 @@
 
     <string name="settings_group_wake_word">Wake word</string>
     <string name="settings_wake_threshold">Threshold</string>
-    <string name="settings_wake_model_file">Model file</string>
     <string name="settings_wake_model_none">None selected</string>
     <string name="settings_import_model">Import model</string>
 
