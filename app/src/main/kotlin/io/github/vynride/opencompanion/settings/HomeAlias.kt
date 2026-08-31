@@ -21,4 +21,10 @@ object HomeAlias {
             }
         context.packageManager.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
     }
+
+    fun isEnabled(context: Context): Boolean {
+        val component = ComponentName(context, "io.github.vynride.opencompanion.HomeAlias")
+        return context.packageManager.getComponentEnabledSetting(component) ==
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+    }
 }

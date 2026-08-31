@@ -196,10 +196,14 @@ fun SettingsScreen(repo: SettingsRepository) {
         }
 
         Group(stringResource(R.string.settings_group_device)) {
+            var homeEnabled by remember { mutableStateOf(HomeAlias.isEnabled(context)) }
             SwitchRow(
                 label = stringResource(R.string.settings_use_as_home),
-                checked = settings.kioskPinned,
-                onCheckedChange = { enabled -> HomeAlias.setEnabled(context, enabled) },
+                checked = homeEnabled,
+                onCheckedChange = { enabled ->
+                    HomeAlias.setEnabled(context, enabled)
+                    homeEnabled = enabled
+                },
             )
             SwitchRow(
                 label = stringResource(R.string.settings_pin_screen),
