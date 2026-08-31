@@ -9,7 +9,9 @@ import io.github.vynride.opencompanion.core.bus.Wake
 import io.github.vynride.opencompanion.core.config.ApiConfig
 import io.github.vynride.opencompanion.core.config.CompanionConfig
 import io.github.vynride.opencompanion.core.state.State
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
@@ -145,9 +147,9 @@ class CompanionTest {
                     )
                 val c = Companion(config, ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
                 c.start()
+                val reply = async(start = CoroutineStart.UNDISPATCHED) { c.bus.on<Reply>().first() }
                 c.bus.publish(Transcript("hi"))
-                val reply = c.bus.on<Reply>().first()
-                assertEquals("hello there", reply.text)
+                assertEquals("hello there", reply.await().text)
                 assertTrue("hello there" in c.memory.journalToday())
                 c.stop()
             }

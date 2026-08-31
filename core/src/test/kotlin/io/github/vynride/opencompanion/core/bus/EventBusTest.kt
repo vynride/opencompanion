@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.bus
 
+import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.state.State
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -40,5 +41,18 @@ class EventBusTest {
             assertTrue(publishing.isCompleted)
             assertEquals(0L, testScheduler.currentTime)
             slow.cancel()
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `a mailboxed consumer never stalls a publisher`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val bus = EventBus(bufferSize = 8)
+            val mailbox = Mailbox(backgroundScope, bus.events, Log.Stdout, "test") { delay(1_000) }
+            mailbox.start()
+            val publishing = launch { repeat(8 + 16) { bus.publish(Mouth(0.5f)) } }
+            assertTrue(publishing.isCompleted)
+            assertEquals(0L, testScheduler.currentTime)
+            mailbox.stop()
         }
 }
