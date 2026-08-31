@@ -18,14 +18,15 @@ class Memory(
 ) {
     private val factsPath: Path get() = root.resolve("facts.md")
 
-    private fun read(path: Path): String = if (Files.exists(path)) Files.readString(path) else ""
+    // Files.readString/writeString are Java 11; Android API 26 only has the byte-array forms.
+    private fun read(path: Path): String = if (Files.exists(path)) String(Files.readAllBytes(path), Charsets.UTF_8) else ""
 
     private fun append(
         path: Path,
         text: String,
     ) {
         Files.createDirectories(path.parent)
-        Files.writeString(path, text, CREATE, APPEND)
+        Files.write(path, text.toByteArray(Charsets.UTF_8), CREATE, APPEND)
     }
 
     fun today(): LocalDate = clock.now().atZone(clock.zone()).toLocalDate()
@@ -49,7 +50,7 @@ class Memory(
         val lines = facts().lines().dropLastWhile { it.isEmpty() }
         val excess = lines.size - maxFactsLines
         if (excess <= 0) return 0
-        Files.writeString(factsPath, lines.drop(excess).joinToString("\n") + "\n")
+        Files.write(factsPath, (lines.drop(excess).joinToString("\n") + "\n").toByteArray(Charsets.UTF_8))
         return excess
     }
 
