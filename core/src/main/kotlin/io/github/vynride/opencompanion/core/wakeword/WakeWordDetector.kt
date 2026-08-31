@@ -12,7 +12,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -39,7 +38,7 @@ class WakeWordDetector(
     private val scope: CoroutineScope,
     private val clock: () -> Duration = ::monotonicNow,
 ) {
-    private val queue = Channel<ShortArray>(config.maxQueue, BufferOverflow.DROP_LATEST)
+    private val queue = Channel<ShortArray>(config.maxQueue)
     private val preroll = ArrayDeque<ShortArray>()
     private val prerollFrames = maxOf(1, config.prerollMs / FRAME_MS)
     private var active = false

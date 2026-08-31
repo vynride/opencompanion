@@ -11,18 +11,19 @@ import io.github.vynride.opencompanion.core.vad.Vad
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.CountDownLatch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class WakeWordDetectorTest {
     private class ScriptedPredictor(
         private val scores: ArrayDeque<Float>,
@@ -67,7 +68,7 @@ class WakeWordDetectorTest {
 
     @Test
     fun `publishes wake above threshold then respects the refractory period`() =
-        runTest(UnconfinedTestDispatcher()) {
+        runTest {
             val h = Harness(backgroundScope, ScriptedPredictor(ArrayDeque(listOf(0.9f, 0.9f, 0.9f))))
             // Scoring runs on Dispatchers.Default, so a collected mutableList races with real
             // worker threads; await exactly the two expected events off the bus instead.
@@ -88,7 +89,7 @@ class WakeWordDetectorTest {
 
     @Test
     fun `does not run inference while not armed`() =
-        runTest(UnconfinedTestDispatcher()) {
+        runTest {
             val p = ScriptedPredictor(ArrayDeque(listOf(0.9f)))
             val h = Harness(backgroundScope, p, armed = { false })
             h.detector.process(frame(1))
@@ -98,7 +99,7 @@ class WakeWordDetectorTest {
 
     @Test
     fun `gate parks frames without speech and replays a pre-roll when speech resumes`() =
-        runTest(UnconfinedTestDispatcher()) {
+        runTest {
             val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
             val vad = ScriptedVad(ArrayDeque(listOf(false, false, false, false, true)))
             val h = Harness(backgroundScope, p, vad)
@@ -112,7 +113,7 @@ class WakeWordDetectorTest {
 
     @Test
     fun `gate keeps scoring during the hold after speech stops`() =
-        runTest(UnconfinedTestDispatcher()) {
+        runTest {
             val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
             val vad = ScriptedVad(ArrayDeque(listOf(true, false, false)))
             val h = Harness(backgroundScope, p, vad)
@@ -126,7 +127,7 @@ class WakeWordDetectorTest {
 
     @Test
     fun `a failing predictor counts as no detection`() =
-        runTest(UnconfinedTestDispatcher()) {
+        runTest {
             val failing =
                 object : WakePredictor {
                     override fun score(frame: ShortArray): Float = error("nope")
@@ -136,5 +137,51 @@ class WakeWordDetectorTest {
             val h = Harness(backgroundScope, failing)
             assertEquals(0f, h.detector.process(frame(1)))
             assertEquals(0, h.wakes.size)
+        }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `drops and counts frames once the internal queue is full`() =
+        runTest {
+            val maxQueue = 4
+            // Blocks the worker's single in-flight score() call for the whole test, so frames
+            // queue up behind it instead of being drained.
+            val block = CountDownLatch(1)
+            val blockingPredictor =
+                object : WakePredictor {
+                    override fun score(frame: ShortArray): Float {
+                        block.await()
+                        return 0f
+                    }
+
+                    override fun reset() {}
+                }
+            val bus = EventBus()
+            val frames = MutableSharedFlow<ShortArray>(extraBufferCapacity = 16)
+            // Launched on the test's own scope, not backgroundScope: its collector's resumption
+            // after the first (UNDISPATCHED) suspension needs the standard test dispatcher to be
+            // driven by advanceUntilIdle(), which backgroundScope's jobs do not reliably get here.
+            val detector =
+                WakeWordDetector(
+                    bus,
+                    blockingPredictor,
+                    WakeWordConfig(maxQueue = maxQueue),
+                    { true },
+                    null,
+                    Log.Stdout,
+                    this,
+                ) { Duration.ZERO }
+            try {
+                detector.start(frames)
+                // The worker takes the very first frame directly off the channel (no receiver
+                // means no buffering for it), then blocks: that leaves room for exactly
+                // `maxQueue` more frames to buffer, so of maxQueue + 4 sent, 3 are dropped.
+                repeat(maxQueue + 4) { frames.emit(frame(it)) }
+                advanceUntilIdle()
+                assertEquals(3, detector.framesDropped)
+            } finally {
+                detector.stop()
+                block.countDown()
+            }
         }
 }
