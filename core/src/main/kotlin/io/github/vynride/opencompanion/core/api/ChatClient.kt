@@ -71,6 +71,16 @@ fun imageMessage(
     }
 }
 
+/** A chat model that takes chat-format messages and returns one assistant message. */
+interface Chat {
+    val model: String
+
+    suspend fun chat(
+        messages: List<JsonObject>,
+        tools: List<JsonObject>? = null,
+    ): JsonObject
+}
+
 /** Chat against an OpenAI-compatible endpoint; takes and returns chat-format messages either way. */
 class ChatClient(
     private val http: OkHttpClient,
@@ -78,8 +88,8 @@ class ChatClient(
     private val api: ChatApi,
     private val reasoningEffort: String,
     private val log: Log,
-) {
-    val model: String get() = service.model
+) : Chat {
+    override val model: String get() = service.model
 
     private fun request(
         messages: List<JsonObject>,
@@ -121,9 +131,9 @@ class ChatClient(
         }
     }
 
-    suspend fun chat(
+    override suspend fun chat(
         messages: List<JsonObject>,
-        tools: List<JsonObject>? = null,
+        tools: List<JsonObject>?,
     ): JsonObject {
         val (url, body) = request(messages, tools)
         for (attempt in 1..RetryPolicy.ATTEMPTS) {
