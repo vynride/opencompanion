@@ -25,7 +25,7 @@ class MouthEnvelopeTest {
     @Test
     fun `streaming mouth emits one level per window with a running peak`() {
         val m = StreamingMouth(rateHz = 20, pcmRate = 24000)
-        val window = 2400
+        val window = 1200
         val loud = ShortArray(window) { 12000 }.toLittleEndianBytes()
         val half = ShortArray(window) { 6000 }.toLittleEndianBytes()
         assertEquals(listOf(1f), m.push(loud))

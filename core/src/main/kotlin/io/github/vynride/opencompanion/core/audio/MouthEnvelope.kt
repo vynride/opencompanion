@@ -21,7 +21,7 @@ class StreamingMouth(
     pcmRate: Int,
     private val peakFloor: Double = 6000.0,
 ) {
-    private val windowBytes = 4 * maxOf(1, pcmRate / rateHz)
+    private val windowBytes = 2 * maxOf(1, pcmRate / rateHz)
     private var buf = ByteArray(0)
     private var peak = peakFloor
 

@@ -17,6 +17,7 @@ import io.github.vynride.opencompanion.core.bus.Reply
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -45,7 +46,7 @@ class Speaker(
     private var wiring: Job? = null
 
     fun start() {
-        wiring = scope.launch { bus.events.collect { handle(it) } }
+        wiring = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { handle(it) } }
     }
 
     fun stop() {
