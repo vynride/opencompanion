@@ -17,6 +17,10 @@ class ToolRegistry(
         tools[tool.name] = tool
     }
 
+    fun register(tools: List<Tool>) {
+        tools.forEach(::register)
+    }
+
     fun names(): List<String> = tools.keys.toList()
 
     fun specs(): List<JsonObject> = tools.values.map { it.spec() }

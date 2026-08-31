@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core
 
+import io.github.vynride.opencompanion.core.api.ChatClient
 import io.github.vynride.opencompanion.core.api.OpenAiSpeechSynth
 import io.github.vynride.opencompanion.core.api.OpenAiTranscriber
+import io.github.vynride.opencompanion.core.brain.Brain
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.config.CompanionConfig
 import io.github.vynride.opencompanion.core.config.ServiceKind
@@ -20,9 +22,18 @@ import io.github.vynride.opencompanion.core.ports.ModelStore
 import io.github.vynride.opencompanion.core.ports.Notifications
 import io.github.vynride.opencompanion.core.ports.Screen
 import io.github.vynride.opencompanion.core.ports.Sensors
+import io.github.vynride.opencompanion.core.senses.Senses
 import io.github.vynride.opencompanion.core.speech.Speaker
 import io.github.vynride.opencompanion.core.state.State
 import io.github.vynride.opencompanion.core.state.StateMachine
+import io.github.vynride.opencompanion.core.tools.ToolRegistry
+import io.github.vynride.opencompanion.core.tools.clockTools
+import io.github.vynride.opencompanion.core.tools.hostTool
+import io.github.vynride.opencompanion.core.tools.laptopTools
+import io.github.vynride.opencompanion.core.tools.lookTool
+import io.github.vynride.opencompanion.core.tools.memoryTools
+import io.github.vynride.opencompanion.core.tools.searchTool
+import io.github.vynride.opencompanion.core.tools.weatherTool
 import io.github.vynride.opencompanion.core.vad.EnergyVad
 import io.github.vynride.opencompanion.core.vad.Vad
 import io.github.vynride.opencompanion.core.vad.loadSileroVad
@@ -70,6 +81,8 @@ class Companion(
     memoryDir: Path,
     private val log: Log,
     parentScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    // Kept last (after parentScope) so existing positional call sites, which end in parentScope, keep compiling.
+    private val extraRuntimeInfo: () -> Map<String, String> = { emptyMap() },
 ) {
     private val scope =
         CoroutineScope(
@@ -86,6 +99,12 @@ class Companion(
     private val stopFns = ArrayList<() -> Unit>()
     private val closeables = ArrayList<AutoCloseable>()
     private var started = false
+
+    private lateinit var toolRegistry: ToolRegistry
+    private lateinit var senses: Senses
+
+    /** Names of every tool wired into the brain, in registration order. */
+    val toolNames: List<String> get() = toolRegistry.names()
 
     fun start() {
         check(!started) { "companion already started" }
@@ -116,7 +135,46 @@ class Companion(
 
         ports.audioInput.start()
         stopFns += ports.audioInput::stop
+
+        val registry = ToolRegistry(bus)
+        toolRegistry = registry
+        lateinit var brain: Brain
+        registry.register(clockTools(ports.clock, ports.haptics, bus, scope))
+        registry.register(memoryTools(memory))
+        registry.register(weatherTool(http, config.location))
+        registry.register(searchTool(http, config.search))
+        registry.register(hostTool(config.hosts))
+        registry.register(laptopTools(ports.notifications, ports.clipboard))
+        if (ports.camera != null && config.cameraEnabled) {
+            registry.register(lookTool(ports.camera) { q, jpeg -> brain.askVision(q, jpeg) })
+        }
+
+        // Assigned before brain.start() so ::runtimeInfo never sees an uninitialized senses.
+        senses = Senses(bus, ports.sensors, ports.screen, config.senses, log, scope)
+
+        val chatClient = config.service(ServiceKind.CHAT)?.let { ChatClient(http, it, config.brain.api, config.brain.reasoningEffort, log) }
+        if (chatClient == null) log.warn("companion", "chat disabled: set the chat model and api key")
+        brain = Brain(bus, config, memory, chatClient, registry, ::runtimeInfo, ports.clock, log, scope)
+        brain.start()
+        stopFns += brain::stop
+
+        senses.start()
+        stopFns += senses::stop
+
         log.info("companion", "running")
+    }
+
+    private fun runtimeInfo(): Map<String, String> {
+        val cm = senses.last["proximity"]
+        val presence =
+            if (cm == null) {
+                "unknown"
+            } else if (cm < config.senses.proximityNearCm) {
+                "near"
+            } else {
+                "away"
+            }
+        return mapOf("last presence" to presence) + extraRuntimeInfo()
     }
 
     fun stop() {
