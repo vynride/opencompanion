@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.state
 
+import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.bus.Event
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
@@ -40,6 +41,7 @@ class StateMachine(
     private val bus: EventBus,
     private val scope: CoroutineScope,
     private val config: StateConfig,
+    private val log: Log,
 ) {
     private val _state = MutableStateFlow(State.IDLE)
     val state: StateFlow<State> = _state.asStateFlow()
@@ -53,7 +55,12 @@ class StateMachine(
     fun isArmed(): Boolean = _state.value in WAKE_STATES
 
     fun start() {
-        wiring = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { handle(it) } }
+        wiring =
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                bus.events.collect { event ->
+                    runCatching { handle(event) }.onFailure { e -> log.error("state", "handler failed", e) }
+                }
+            }
         armSleepTimer()
     }
 

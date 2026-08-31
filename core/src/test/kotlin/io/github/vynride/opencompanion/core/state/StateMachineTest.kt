@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.state
 
+import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
@@ -30,7 +31,7 @@ class StateMachineTest {
     ) {
         val bus = EventBus()
         val changes = mutableListOf<State>()
-        val sm = StateMachine(bus, scope.backgroundScope, config)
+        val sm = StateMachine(bus, scope.backgroundScope, config, Log.Stdout)
 
         init {
             bus.on<StateChanged>().onEach { changes += it.state }.launchIn(scope.backgroundScope)

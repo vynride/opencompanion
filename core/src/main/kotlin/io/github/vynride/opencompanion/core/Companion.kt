@@ -81,7 +81,7 @@ class Companion(
     memoryDir: Path,
     private val log: Log,
     parentScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-    // Kept last (after parentScope) so existing positional call sites, which end in parentScope, keep compiling.
+    // Extra prompt runtime facts, merged last.
     private val extraRuntimeInfo: () -> Map<String, String> = { emptyMap() },
 ) {
     private val scope =
@@ -93,17 +93,17 @@ class Companion(
 
     val bus = EventBus()
     val memory = Memory(memoryDir, config.memory.maxFactsLines, ports.clock)
-    private val stateMachine = StateMachine(bus, scope, config.state)
+    private val stateMachine = StateMachine(bus, scope, config.state, log)
     val state: StateFlow<State> = stateMachine.state
 
     private val stopFns = ArrayList<() -> Unit>()
     private val closeables = ArrayList<AutoCloseable>()
     private var started = false
 
-    private lateinit var toolRegistry: ToolRegistry
+    private val toolRegistry = ToolRegistry(bus)
     private lateinit var senses: Senses
 
-    /** Names of every tool wired into the brain, in registration order. */
+    /** Names of every tool wired into the brain, in registration order; empty before [start]. */
     val toolNames: List<String> get() = toolRegistry.names()
 
     fun start() {
@@ -136,8 +136,7 @@ class Companion(
         ports.audioInput.start()
         stopFns += ports.audioInput::stop
 
-        val registry = ToolRegistry(bus)
-        toolRegistry = registry
+        val registry = toolRegistry
         lateinit var brain: Brain
         registry.register(clockTools(ports.clock, ports.haptics, bus, scope))
         registry.register(memoryTools(memory))
