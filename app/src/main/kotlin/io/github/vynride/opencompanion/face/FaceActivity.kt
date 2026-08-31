@@ -42,8 +42,10 @@ import io.github.vynride.opencompanion.service.CompanionService
 import io.github.vynride.opencompanion.settings.ScreenRelay
 import io.github.vynride.opencompanion.settings.SettingsActivity
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import io.github.vynride.opencompanion.core.Companion as CoreCompanion
 
 class FaceActivity : ComponentActivity() {
     private val faceWebView: WebView by lazy { buildFaceWebView(this) }
@@ -57,20 +59,30 @@ class FaceActivity : ComponentActivity() {
                 service: IBinder?,
             ) {
                 val binder = service as? CompanionService.LocalBinder ?: return
-                val companion = binder.companion ?: return
-                FaceMessages.forEvent(StateChanged(companion.state.value))?.let(faceWebView::push)
                 eventsJob =
                     lifecycleScope.launch {
-                        repeatOnLifecycle(Lifecycle.State.STARTED) {
-                            companion.bus.events.collect { event ->
-                                FaceMessages.forEvent(event)?.let(faceWebView::push)
-                            }
+                        var companion = binder.companion
+                        var attempt = 0
+                        while (companion == null && attempt < 20) {
+                            delay(50)
+                            companion = binder.companion
+                            attempt++
                         }
+                        companion?.let { wireCompanion(it) }
                     }
             }
 
             override fun onServiceDisconnected(name: ComponentName?) = Unit
         }
+
+    private suspend fun wireCompanion(companion: CoreCompanion) {
+        FaceMessages.forEvent(StateChanged(companion.state.value))?.let(faceWebView::push)
+        repeatOnLifecycle(Lifecycle.State.STARTED) {
+            companion.bus.events.collect { event ->
+                FaceMessages.forEvent(event)?.let(faceWebView::push)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,10 +90,7 @@ class FaceActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setShowWhenLocked(true)
         setTurnScreenOn(true)
-        WindowInsetsControllerCompat(window, window.decorView).apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.systemBars())
-        }
+        hideSystemBars()
         setContent {
             MaterialTheme {
                 Surface(color = Color.Black) {
@@ -116,6 +125,7 @@ class FaceActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        hideSystemBars()
         ScreenRelay.attach(window)
         if (runBlocking { appGraph.settings.current().kioskPinned }) {
             runCatching { startLockTask() }
@@ -127,24 +137,37 @@ class FaceActivity : ComponentActivity() {
         ScreenRelay.detach()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        faceWebView.destroy()
+    }
+
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
     private fun openSettings() = startActivity(Intent(this, SettingsActivity::class.java))
 
     private fun micGranted() = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 }
 
-/** Full-size face WebView with a long-press overlay that opens settings. */
+/** Full-size face WebView with a transparent long-press overlay on top that opens settings. */
 @Composable
 fun FaceContent(
     webView: WebView,
     onLongPress: () -> Unit,
 ) {
-    Box(
-        modifier =
-        Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+        Box(
+            modifier =
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
+        )
     }
 }
 
