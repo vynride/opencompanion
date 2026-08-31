@@ -8,7 +8,9 @@ import android.media.AudioTrack
 import io.github.vynride.opencompanion.core.audio.parseWav
 import io.github.vynride.opencompanion.core.audio.toLittleEndianBytes
 import io.github.vynride.opencompanion.core.ports.AudioOutput
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
@@ -56,8 +58,15 @@ class AndroidAudioOutput : AudioOutput {
             while (track.playState == AudioTrack.PLAYSTATE_PLAYING &&
                 track.playbackHeadPosition.toLong() < framesWritten
             ) {
-                Thread.sleep(20)
+                delay(20)
             }
+        } catch (e: CancellationException) {
+            // Barge-in: drop the queued audio so playback stops immediately.
+            runCatching {
+                track.pause()
+                track.flush()
+            }
+            throw e
         } finally {
             runCatching { track.stop() }
             track.release()

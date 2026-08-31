@@ -60,24 +60,34 @@ class AndroidAudioInput(
         running = true
         worker =
             thread(name = "audio-input") {
-                val record = open()
-                val resampler = Resampler(record.sampleRate, SAMPLE_RATE)
-                val framer = FrameBuffer(FRAME_SAMPLES)
-                val buf = ShortArray(record.sampleRate / 10)
-                record.startRecording()
                 try {
-                    while (running) {
-                        val n = record.read(buf, 0, buf.size)
-                        if (n <= 0) continue
-                        for (frame in framer.push(resampler.process(buf.copyOf(n)))) {
-                            flow.tryEmit(frame)
-                        }
-                    }
+                    capture()
+                } catch (e: Throwable) {
+                    log.error("audio", "capture failed", e)
                 } finally {
-                    record.stop()
-                    record.release()
+                    running = false
                 }
             }
+    }
+
+    private fun capture() {
+        val record = open()
+        val resampler = Resampler(record.sampleRate, SAMPLE_RATE)
+        val framer = FrameBuffer(FRAME_SAMPLES)
+        val buf = ShortArray(record.sampleRate / 10)
+        record.startRecording()
+        try {
+            while (running) {
+                val n = record.read(buf, 0, buf.size)
+                if (n <= 0) continue
+                for (frame in framer.push(resampler.process(buf.copyOf(n)))) {
+                    flow.tryEmit(frame)
+                }
+            }
+        } finally {
+            record.stop()
+            record.release()
+        }
     }
 
     override fun stop() {
