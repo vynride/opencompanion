@@ -15,10 +15,13 @@ private const val STATE_SIZE = 2 * 1 * 128
 class SileroVad(
     private val model: OnnxModel,
     private val threshold: Float = 0.5f,
-) : Vad {
+) : Vad,
+    AutoCloseable {
     private var state = FloatArray(STATE_SIZE)
     private var context = FloatArray(CONTEXT)
     private var pending = ShortArray(0)
+
+    override fun close() = model.close()
 
     override fun reset() {
         state = FloatArray(STATE_SIZE)

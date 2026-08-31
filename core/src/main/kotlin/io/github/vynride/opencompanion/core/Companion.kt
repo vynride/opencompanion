@@ -118,15 +118,18 @@ class Companion(
     fun stop() {
         stopFns.asReversed().forEach { it() }
         stopFns.clear()
-        closeables.forEach { runCatching { it.close() } }
-        closeables.clear()
+        // Sessions are closed only once every coroutine has finished, so no inference is still in native code.
+        scope.coroutineContext[Job]?.invokeOnCompletion {
+            closeables.forEach { c -> runCatching { c.close() } }
+            closeables.clear()
+        }
         scope.cancel()
         log.info("companion", "stopped")
     }
 
     private fun vad(threshold: Float): Vad =
         try {
-            loadSileroVad(ports.models, threshold)
+            loadSileroVad(ports.models, threshold).also { closeables += it }
         } catch (e: Exception) {
             log.warn("companion", "silero vad unavailable; using energy vad", e)
             EnergyVad()
