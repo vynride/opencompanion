@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.yield
 
 class EventBus(
     bufferSize: Int = 256,
@@ -18,7 +17,6 @@ class EventBus(
 
     suspend fun publish(event: Event) {
         flow.emit(event)
-        yield()
     }
 
     inline fun <reified T : Event> on(): Flow<T> = events.filterIsInstance<T>()

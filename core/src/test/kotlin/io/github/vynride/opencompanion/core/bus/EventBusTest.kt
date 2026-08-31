@@ -3,17 +3,20 @@
 package io.github.vynride.opencompanion.core.bus
 
 import io.github.vynride.opencompanion.core.state.State
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class EventBusTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `on filters by event type in publish order`() =
-        runTest {
+        runTest(UnconfinedTestDispatcher()) {
             val bus = EventBus()
             val seen = mutableListOf<Transcript>()
             val collector = launch { bus.on<Transcript>().take(2).toList(seen) }
