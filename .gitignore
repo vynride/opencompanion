@@ -8,11 +8,16 @@ memory/journal/
 logs/
 phone-data/
 
-# python
-__pycache__/
-*.pyc
-.venv/
-.pytest_cache/
+# gradle / android
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+.kotlin/
+.idea/
+*.iml
+captures/
 
 # local notes and agent scratch
 .notes/
