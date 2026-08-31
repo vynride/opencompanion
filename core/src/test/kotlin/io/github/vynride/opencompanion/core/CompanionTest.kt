@@ -21,6 +21,7 @@ import java.nio.file.Path
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -58,6 +59,15 @@ class CompanionTest {
             c.bus.publish(PlaybackDone)
             advanceUntilIdle()
             assertEquals(State.LISTENING, c.state.value)
+            c.stop()
+        }
+
+    @Test
+    fun `start twice throws`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val c = Companion(CompanionConfig(), ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+            c.start()
+            assertFailsWith<IllegalStateException> { c.start() }
             c.stop()
         }
 

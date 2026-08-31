@@ -118,6 +118,29 @@ class SpeakerTest {
         }
 
     @Test
+    fun `a throwing handler does not kill the collector`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val synth =
+                object : SpeechSynth {
+                    var calls = 0
+
+                    override suspend fun synthesize(text: String): ByteArray {
+                        calls++
+                        require(text != "bad") { "malformed audio" }
+                        return wavBytes(ShortArray(160) { 100 }, 16000)
+                    }
+
+                    override fun stream(text: String): Flow<ByteArray> = flow {}
+                }
+            val h = Harness(this, synth)
+            h.speaker.start()
+            h.bus.publish(Say("bad"))
+            h.bus.publish(Say("good"))
+            assertEquals(2, synth.calls)
+            h.speaker.stop()
+        }
+
+    @Test
     fun `blank text is skipped`() =
         runTest(UnconfinedTestDispatcher()) {
             val synth = FakeSynth()
