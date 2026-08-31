@@ -53,7 +53,12 @@ class WakeWordDetector(
         jobs =
             listOf(
                 scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                    frames.collect { if (queue.trySend(it).isFailure) framesDropped++ }
+                    frames.collect {
+                        if (queue.trySend(it).isFailure) {
+                            framesDropped++
+                            if (framesDropped == 1) log.warn("wakeword", "dropping frames; inference is behind realtime")
+                        }
+                    }
                 },
                 scope.launch(start = CoroutineStart.UNDISPATCHED) {
                     for (frame in queue) process(frame)
@@ -75,8 +80,9 @@ class WakeWordDetector(
     suspend fun process(frame: ShortArray): Float {
         if (!armed()) return park(frame)
         val now = clock()
-        if (gate != null) {
-            if (gate.isSpeech(frame)) lastSpeech = now
+        val speech = gate?.let { withContext(Dispatchers.Default) { it.isSpeech(frame) } }
+        if (speech != null) {
+            if (speech) lastSpeech = now
             if (now - lastSpeech > config.gateHoldS.seconds) return park(frame)
         }
         val burst =

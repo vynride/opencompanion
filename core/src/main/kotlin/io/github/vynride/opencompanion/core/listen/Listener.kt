@@ -44,7 +44,12 @@ class Listener(
     private var followupPending = false
 
     fun start() {
-        wiring = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { handle(it) } }
+        wiring =
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                bus.events.collect { event ->
+                    runCatching { handle(event) }.onFailure { e -> log.error("listen", "listener handler failed", e) }
+                }
+            }
     }
 
     fun stop() {

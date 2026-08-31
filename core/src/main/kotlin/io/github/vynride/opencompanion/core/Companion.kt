@@ -58,6 +58,7 @@ class Ports(
  * Concurrency contract:
  * - the Companion owns its coroutine scope, derived from [parentScope]; [stop] cancels only that scope and leaves the
  *   parent running
+ * - [parentScope] must be background-dispatched: core runs VAD and silence detection on it
  * - a stopped Companion is dead; build a fresh instance to run again
  * - unhandled coroutine failures are logged, never taken to the process
  * - bus collectors are subscribed before [start] returns
@@ -84,8 +85,11 @@ class Companion(
 
     private val stopFns = ArrayList<() -> Unit>()
     private val closeables = ArrayList<AutoCloseable>()
+    private var started = false
 
     fun start() {
+        check(!started) { "companion already started" }
+        started = true
         stateMachine.start()
         stopFns += stateMachine::stop
 

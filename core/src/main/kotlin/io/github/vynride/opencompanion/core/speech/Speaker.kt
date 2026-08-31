@@ -46,7 +46,12 @@ class Speaker(
     private var wiring: Job? = null
 
     fun start() {
-        wiring = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { handle(it) } }
+        wiring =
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                bus.events.collect { event ->
+                    runCatching { handle(event) }.onFailure { e -> log.error("tts", "speaker handler failed", e) }
+                }
+            }
     }
 
     fun stop() {
