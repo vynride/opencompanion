@@ -11,14 +11,13 @@ import io.github.vynride.opencompanion.core.bus.Caption
 import io.github.vynride.opencompanion.core.bus.Event
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
+import io.github.vynride.opencompanion.core.bus.Mailbox
 import io.github.vynride.opencompanion.core.bus.Mouth
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -43,19 +42,14 @@ class Speaker(
     private val scope: CoroutineScope,
     private val rateHz: Int = 20,
 ) {
-    private var wiring: Job? = null
+    private val mailbox = Mailbox(scope, bus.events, log, "tts", ::handle)
 
     fun start() {
-        wiring =
-            scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                bus.events.collect { event ->
-                    runCatching { handle(event) }.onFailure { e -> log.error("tts", "speaker handler failed", e) }
-                }
-            }
+        mailbox.start()
     }
 
     fun stop() {
-        wiring?.cancel()
+        mailbox.stop()
     }
 
     suspend fun handle(event: Event) {

@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 /**
  * One shared event stream. Collectors are launched with [kotlinx.coroutines.CoroutineStart.UNDISPATCHED] so they are
  * subscribed before any publisher runs, and must hand work off immediately: blocking or long work inside `collect`
- * stalls every publisher once the buffer fills.
+ * stalls every publisher once the buffer fills. A collector that both works and publishes takes a [Mailbox].
  */
 class EventBus(
     bufferSize: Int = 256,

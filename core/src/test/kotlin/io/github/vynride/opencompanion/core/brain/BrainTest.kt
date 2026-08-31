@@ -86,13 +86,15 @@ private class ScriptedChat(
     }
 }
 
-private class FailingChat : Chat {
+private class FailingChat(
+    private val error: () -> Throwable = { IOException("boom") },
+) : Chat {
     override val model = "chat-model"
 
     override suspend fun chat(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
-    ): JsonObject = throw IOException("boom")
+    ): JsonObject = throw error()
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -294,6 +296,21 @@ class BrainTest {
     fun `an io failure publishes Failure and no Reply`() =
         runTest(UnconfinedTestDispatcher()) {
             val h = Harness(this, dir, FailingChat())
+            assertEquals("", h.brain.handle("hi"))
+            assertTrue(h.replies.isEmpty())
+            assertEquals(
+                "the chat model",
+                h.events
+                    .filterIsInstance<Failure>()
+                    .single()
+                    .source,
+            )
+        }
+
+    @Test
+    fun `a non-io failure also publishes Failure and no Reply`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val h = Harness(this, dir, FailingChat { IllegalStateException("bad body") })
             assertEquals("", h.brain.handle("hi"))
             assertTrue(h.replies.isEmpty())
             assertEquals(

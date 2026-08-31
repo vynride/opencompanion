@@ -9,14 +9,13 @@ import io.github.vynride.opencompanion.core.audio.wavBytes
 import io.github.vynride.opencompanion.core.bus.Event
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
+import io.github.vynride.opencompanion.core.bus.Mailbox
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Transcript
 import io.github.vynride.opencompanion.core.bus.Wake
 import io.github.vynride.opencompanion.core.config.SttConfig
 import io.github.vynride.opencompanion.core.vad.Vad
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
@@ -39,21 +38,16 @@ class Listener(
     private val log: Log,
     private val scope: CoroutineScope,
 ) {
-    private var wiring: Job? = null
+    private val mailbox = Mailbox(scope, bus.events, log, "listen", ::handle)
     private var turnInProgress = false
     private var followupPending = false
 
     fun start() {
-        wiring =
-            scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                bus.events.collect { event ->
-                    runCatching { handle(event) }.onFailure { e -> log.error("listen", "listener handler failed", e) }
-                }
-            }
+        mailbox.start()
     }
 
     fun stop() {
-        wiring?.cancel()
+        mailbox.stop()
     }
 
     suspend fun handle(event: Event) {

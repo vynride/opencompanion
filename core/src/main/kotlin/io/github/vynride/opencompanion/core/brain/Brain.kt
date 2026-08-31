@@ -11,6 +11,7 @@ import io.github.vynride.opencompanion.core.api.toolMessage
 import io.github.vynride.opencompanion.core.api.userMessage
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
+import io.github.vynride.opencompanion.core.bus.Mailbox
 import io.github.vynride.opencompanion.core.bus.Reply
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.bus.Transcript
@@ -18,13 +19,11 @@ import io.github.vynride.opencompanion.core.config.CompanionConfig
 import io.github.vynride.opencompanion.core.memory.Memory
 import io.github.vynride.opencompanion.core.ports.Clock
 import io.github.vynride.opencompanion.core.tools.ToolRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.serialization.json.JsonArray
@@ -68,22 +67,18 @@ class Brain(
     private val history = ArrayList<JsonObject>()
     private var lastTurn: Instant? = null
     private var saidNoLlm = false
-    private var wiring: Job? = null
+    private val mailbox =
+        Mailbox(scope, bus.on<Transcript>(), log, "brain") {
+            maybeSummarizeYesterday()
+            handle(it.text)
+        }
 
     fun start() {
-        wiring =
-            scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                bus.on<Transcript>().collect {
-                    runCatching {
-                        maybeSummarizeYesterday()
-                        handle(it.text)
-                    }.onFailure { e -> log.error("brain", "handler failed", e) }
-                }
-            }
+        mailbox.start()
     }
 
     fun stop() {
-        wiring?.cancel()
+        mailbox.stop()
     }
 
     fun buildSystemPrompt(): String {
@@ -107,7 +102,7 @@ class Brain(
 
     private fun maybeResetSession() {
         val last = lastTurn
-        if (last != null && Duration.between(last, clock.now()).toMinutes() > config.brain.sessionResetMin) {
+        if (last != null && Duration.between(last, clock.now()).seconds > config.brain.sessionResetMin * 60L) {
             log.info("brain", "session reset after idle")
             history.clear()
         }
@@ -130,7 +125,9 @@ class Brain(
         val reply =
             try {
                 loop(llm, messages)
-            } catch (e: IOException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 log.error("brain", "chat failed", e)
                 bus.publish(Failure("the chat model", e.message.orEmpty()))
                 return ""
