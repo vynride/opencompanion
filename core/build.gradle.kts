@@ -20,6 +20,7 @@ dependencies {
     testImplementation(libs.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.onnxruntime.jvm)
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:${kotlin.coreLibrariesVersion}")
 }
 
 tasks.test {
