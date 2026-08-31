@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">opencompanion</string>
     <string name="notification_channel_name">Companion</string>
+    <string name="notification_channel_alerts">Companion alerts</string>
     <string name="notification_running">Listening for the wake word</string>
     <string name="notification_stop">Stop</string>
     <string name="mic_disclosure_title">Microphone access</string>

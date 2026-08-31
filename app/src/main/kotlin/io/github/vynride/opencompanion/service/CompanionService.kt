@@ -26,7 +26,13 @@ import io.github.vynride.opencompanion.platform.AndroidSensors
 import io.github.vynride.opencompanion.platform.AssetModelStore
 import io.github.vynride.opencompanion.platform.CameraXCamera
 import io.github.vynride.opencompanion.settings.ScreenRelay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.io.File
 import java.time.ZoneId
@@ -37,7 +43,10 @@ class CompanionService : Service() {
     }
 
     private val binder = LocalBinder()
-    private var companion: Companion? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var buildJob: Job? = null
+
+    @Volatile private var companion: Companion? = null
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -46,15 +55,39 @@ class CompanionService : Service() {
         flags: Int,
         startId: Int,
     ): Int {
+        if (!granted(Manifest.permission.RECORD_AUDIO)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (companion == null) {
+        if (intent?.action == ACTION_RESTART) {
             startForegroundWithTypes()
-            companion = build().also { it.start() }
+            rebuild()
+            return START_STICKY
+        }
+        if (companion == null && buildJob?.isActive != true) {
+            startForegroundWithTypes()
+            rebuild()
         }
         return START_STICKY
+    }
+
+    // Building reads settings and loads models, so it runs off the main thread; the face
+    // activity retries the binder until the companion appears.
+    private fun rebuild() {
+        val previous = buildJob
+        buildJob =
+            scope.launch {
+                previous?.cancelAndJoin()
+                companion?.stop()
+                companion = null
+                val built = build()
+                companion = built
+                built.start()
+            }
     }
 
     private fun startForegroundWithTypes() {
@@ -65,9 +98,9 @@ class CompanionService : Service() {
 
     private fun granted(permission: String) = ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
-    private fun build(): Companion {
+    private suspend fun build(): Companion {
         val graph = appGraph
-        val config = runBlocking { graph.settings.config() }
+        val config = graph.settings.config()
         val camera =
             if (granted(Manifest.permission.CAMERA) && config.cameraEnabled) {
                 CameraXCamera(this, config.look.maxPx, graph.log)
@@ -104,6 +137,7 @@ class CompanionService : Service() {
     }
 
     override fun onDestroy() {
+        scope.cancel()
         companion?.stop()
         companion = null
         super.onDestroy()
@@ -111,16 +145,15 @@ class CompanionService : Service() {
 
     companion object Statics {
         private const val ACTION_STOP = "io.github.vynride.opencompanion.STOP"
+        private const val ACTION_RESTART = "io.github.vynride.opencompanion.RESTART"
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, CompanionService::class.java))
         }
 
-        fun stop(context: Context) {
-            context.startService(stopIntent(context))
-        }
-
         fun stopIntent(context: Context): Intent = Intent(context, CompanionService::class.java).setAction(ACTION_STOP)
+
+        fun restartIntent(context: Context): Intent = Intent(context, CompanionService::class.java).setAction(ACTION_RESTART)
 
         fun bind(
             context: Context,

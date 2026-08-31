@@ -10,7 +10,7 @@ import io.github.vynride.opencompanion.R
 import io.github.vynride.opencompanion.core.ports.Notification
 import io.github.vynride.opencompanion.core.ports.Notifications
 
-private const val CHANNEL_ID = "companion"
+private const val CHANNEL_ID = "companion_alerts"
 
 class AndroidNotifications(
     private val context: Context,
@@ -21,7 +21,7 @@ class AndroidNotifications(
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                context.getString(R.string.notification_channel_name),
+                context.getString(R.string.notification_channel_alerts),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ),
         )

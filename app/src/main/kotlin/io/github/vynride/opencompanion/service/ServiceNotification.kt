@@ -10,7 +10,7 @@ import android.content.Context
 import androidx.core.app.NotificationCompat
 import io.github.vynride.opencompanion.R
 
-private const val CHANNEL_ID = "companion"
+private const val CHANNEL_ID = "companion_service"
 
 /** The ongoing notification that keeps [CompanionService] alive in the foreground. */
 object ServiceNotification {
