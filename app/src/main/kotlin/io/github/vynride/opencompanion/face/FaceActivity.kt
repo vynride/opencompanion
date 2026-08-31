@@ -16,17 +16,12 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
@@ -35,9 +30,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import io.github.vynride.opencompanion.R
 import io.github.vynride.opencompanion.appGraph
 import io.github.vynride.opencompanion.core.bus.StateChanged
+import io.github.vynride.opencompanion.permissions.PermissionGate
 import io.github.vynride.opencompanion.service.CompanionService
 import io.github.vynride.opencompanion.settings.ScreenRelay
 import io.github.vynride.opencompanion.settings.SettingsActivity
@@ -94,10 +89,8 @@ class FaceActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(color = Color.Black) {
-                    if (micGranted()) {
+                    PermissionGate(onReady = { startAndBindCompanion() }) {
                         FaceContent(faceWebView, onLongPress = { openSettings() })
-                    } else {
-                        MicPlaceholder()
                     }
                 }
             }
@@ -106,11 +99,16 @@ class FaceActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (micGranted()) {
-            CompanionService.start(this)
-            CompanionService.bind(this, connection)
-            bound = true
+        if (!bound && micGranted()) {
+            startAndBindCompanion()
         }
+    }
+
+    private fun startAndBindCompanion() {
+        if (bound) return
+        CompanionService.start(this)
+        CompanionService.bind(this, connection)
+        bound = true
     }
 
     override fun onStop() {
@@ -168,12 +166,5 @@ fun FaceContent(
                 .fillMaxSize()
                 .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
         )
-    }
-}
-
-@Composable
-private fun MicPlaceholder() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(stringResource(R.string.mic_disclosure_body), modifier = Modifier.padding(24.dp))
     }
 }
