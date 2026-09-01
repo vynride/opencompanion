@@ -77,16 +77,29 @@ class AndroidAudioOutput(
         val track = track(rateHz)
         var framesWritten = 0L
         var aborted = false
-        track.play()
+        // Start only after prefill: a streaming track started empty underruns and
+        // gets disabled by the mixer before the first network chunk lands.
+        val prefillFrames = rateHz / 5L
+        var playing = false
+
+        fun ensurePlaying() {
+            if (!playing) {
+                track.play()
+                playing = true
+            }
+        }
         try {
             chunks.collect { chunk ->
                 if (aborted) return@collect
-                if (!writeChunk(track, chunk)) {
+                if (!writeChunk(track, chunk, ::ensurePlaying)) {
                     aborted = true
                     return@collect
                 }
                 framesWritten += chunk.size / 2
+                if (framesWritten >= prefillFrames) ensurePlaying()
             }
+            // Short utterances below the prefill threshold must still play.
+            if (!aborted && framesWritten > 0) ensurePlaying()
             // Drain: wait until the playback head reaches everything written,
             // bailing if the head stops advancing.
             var lastHead = track.playbackHeadPosition
@@ -126,6 +139,7 @@ class AndroidAudioOutput(
     private suspend fun writeChunk(
         track: AudioTrack,
         chunk: ByteArray,
+        ensurePlaying: () -> Unit,
     ): Boolean {
         var offset = 0
         var lastHead = track.playbackHeadPosition
@@ -144,8 +158,10 @@ class AndroidAudioOutput(
                 }
 
                 n == 0 -> {
-                    // Buffer full: wait for the head to advance; a track the mixer
-                    // deactivated never advances, so give up after the stall limit.
+                    // A full buffer is more than enough prefill, so make sure the
+                    // track is consuming, then wait for the head to advance; a track
+                    // the mixer disabled never advances, so give up after the stall limit.
+                    ensurePlaying()
                     delay(POLL_MS)
                     val head = track.playbackHeadPosition
                     if (head == lastHead) {
