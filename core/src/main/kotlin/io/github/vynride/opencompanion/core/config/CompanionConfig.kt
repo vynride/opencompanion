@@ -71,8 +71,9 @@ data class SttConfig(
     val silenceMs: Int = 700,
     val maxMs: Int = 8000,
     val minMs: Int = 300,
-    // A lone VAD blip must not send a noise-only segment to the STT API.
-    val minSpeechMs: Int = 250,
+    // A lone VAD blip must not send a noise-only segment to the STT API. Kept low:
+    // the model VAD marks only a fraction of genuinely voiced frames on some mics.
+    val minSpeechMs: Int = 100,
 )
 
 data class BrainConfig(

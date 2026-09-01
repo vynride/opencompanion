@@ -111,6 +111,10 @@ class Listener(
                 frames.takeWhile { !det.feed(it) }.collect {}
             }
         if (finished == null) log.warn("listen", "no audio frames arrived while listening")
+        if (det.speechSeen && !det.hasEnough()) {
+            // A dropped segment can be real speech the VAD under-marked; make it diagnosable.
+            log.info("listen", "dropping segment: voiced ${det.voicedMs}ms of ${det.totalMs}ms")
+        }
         return if (det.hasEnough()) det.pcm() else ShortArray(0)
     }
 

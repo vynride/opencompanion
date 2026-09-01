@@ -46,20 +46,24 @@ class SilenceDetectorTest {
     }
 
     @Test
-    fun `a lone voiced blip is not enough to transcribe`() {
-        val d = SilenceDetector(ScriptedVad(true), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 240)
+    fun `a lone voiced blip is not enough to transcribe at the default bar`() {
+        val d = SilenceDetector(ScriptedVad(true), silenceMs = 160, maxMs = 8000, minMs = 80)
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
         assertTrue(d.feed(frame))
         assertFalse(d.hasEnough())
+        assertEquals(80, d.voicedMs)
+        assertEquals(3 * 80, d.totalMs)
     }
 
     @Test
-    fun `sustained speech passes the voiced minimum`() {
-        val d = SilenceDetector(ScriptedVad(true, true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 240)
+    fun `sparse real speech passes the default voiced minimum`() {
+        // The model VAD can mark only a fraction of voiced frames, so two hits must pass.
+        val d = SilenceDetector(ScriptedVad(true, false, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80)
         repeat(4) { assertFalse(d.feed(frame)) }
         assertTrue(d.feed(frame))
         assertTrue(d.hasEnough())
+        assertEquals(160, d.voicedMs)
     }
 
     @Test
