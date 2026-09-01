@@ -14,20 +14,50 @@
     <string name="open_settings">Settings</string>
 
     <string name="settings_title">Settings</string>
-    <string name="settings_group_companion">Companion</string>
-    <string name="settings_companion_name">Name</string>
-    <string name="settings_edit_personality">Edit personality</string>
-    <string name="settings_personality_title">Personality</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_not_set">Not set</string>
     <string name="settings_save">Save</string>
     <string name="settings_cancel">Cancel</string>
 
-    <string name="settings_group_location">Location</string>
+    <string name="settings_page_companion">Companion</string>
+    <string name="settings_page_location">Location &amp; time</string>
+    <string name="settings_page_services">AI services</string>
+    <string name="settings_page_voice">Voice</string>
+    <string name="settings_page_wake_word">Wake word</string>
+    <string name="settings_page_integrations">Integrations</string>
+    <string name="settings_page_device">Device</string>
+    <string name="settings_summary_integrations">Search, laptop and camera</string>
+    <string name="settings_summary_device">Home screen and kiosk pin</string>
+
+    <string name="settings_companion_name">Name</string>
+    <string name="settings_edit_personality">Personality</string>
+    <string name="settings_personality_summary">How the companion speaks and behaves</string>
+
+    <string name="settings_personality_title">Personality</string>
+    <string name="settings_personality_unsaved">%1$s (unsaved)</string>
+    <string name="settings_personality_chars">%1$d characters</string>
+    <string name="settings_personality_hint">Changes apply after the companion restarts</string>
+    <string name="settings_personality_save_failed">Could not save the personality file</string>
+    <string name="settings_discard">Discard</string>
+    <string name="settings_discard_title">Discard changes?</string>
+    <string name="settings_discard_body">Your unsaved edits will be lost.</string>
+    <string name="settings_persona_title">Replace the text?</string>
+    <string name="settings_persona_body">The editor content will be replaced with this starter persona.</string>
+    <string name="settings_persona_replace">Replace</string>
+    <string name="settings_persona_warm">Warm</string>
+    <string name="settings_persona_warm_text">You are a warm, encouraging companion. You take genuine interest in the user\'s day, celebrate small wins, and keep your replies gentle and upbeat.</string>
+    <string name="settings_persona_wry">Dry wit</string>
+    <string name="settings_persona_wry_text">You are a companion with a dry sense of humour. You are helpful first and wry second, with the occasional deadpan aside, and you are never mean.</string>
+    <string name="settings_persona_butler">Butler</string>
+    <string name="settings_persona_butler_text">You are a concise, courteous butler. You answer precisely, anticipate what is needed next, and never ramble.</string>
+
     <string name="settings_location_name">Location name</string>
     <string name="settings_lat">Latitude</string>
     <string name="settings_lon">Longitude</string>
     <string name="settings_timezone">Timezone</string>
+    <string name="settings_manual_header">Manual</string>
 
-    <string name="settings_group_api">API</string>
+    <string name="settings_shared_endpoint">Shared endpoint</string>
     <string name="settings_base_url">Base URL</string>
     <string name="settings_api_key">API key</string>
     <string name="settings_auth_header">Auth header</string>
@@ -36,32 +66,27 @@
     <string name="settings_tts_model">TTS model</string>
     <string name="settings_chat_api">API style</string>
 
-    <string name="settings_group_api_overrides">API overrides</string>
+    <string name="settings_group_api_overrides">Per-service overrides</string>
     <string name="settings_override_chat">Chat</string>
     <string name="settings_override_transcribe">Transcribe</string>
     <string name="settings_override_tts">Speech</string>
 
-    <string name="settings_group_voice">Voice</string>
     <string name="settings_voice">Voice</string>
     <string name="settings_speed">Speed</string>
 
-    <string name="settings_group_wake_word">Wake word</string>
     <string name="settings_wake_threshold">Threshold</string>
     <string name="settings_wake_model_none">None selected</string>
     <string name="settings_import_model">Import model</string>
 
-    <string name="settings_group_extras">Extras</string>
     <string name="settings_exa_key">Exa key</string>
     <string name="settings_laptop_host">Laptop host</string>
     <string name="settings_camera_enabled">Camera</string>
 
-    <string name="settings_group_device">Device</string>
     <string name="settings_use_as_home">Use as home screen</string>
     <string name="settings_pin_screen">Pin screen</string>
     <string name="settings_restart_companion">Restart companion</string>
     <string name="settings_restarting_companion">Restarting the companion</string>
 
-    <string name="settings_group_about">About</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_licence">AGPL-3.0-or-later</string>
 </resources>

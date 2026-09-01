@@ -18,7 +18,7 @@ class SettingsActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier) {
-                    SettingsScreen(repo)
+                    SettingsNav(repo)
                 }
             }
         }
