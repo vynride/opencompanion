@@ -49,7 +49,7 @@ class ListenerTest {
                 input.frames,
                 transcriber,
                 vad,
-                SttConfig(silenceMs = 160, maxMs = 800, minMs = 80, minSpeechMs = 160),
+                SttConfig(silenceMs = 160, maxMs = 800, minMs = 80, minSpeechMs = 160, leadInMs = 0),
                 followupS,
                 Log.Stdout,
                 scope.backgroundScope,

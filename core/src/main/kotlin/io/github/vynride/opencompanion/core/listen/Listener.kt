@@ -104,7 +104,7 @@ class Listener(
 
     /** Collect frames until the detector says stop; empty when too short. */
     suspend fun record(onsetMs: Int): ShortArray {
-        val det = SilenceDetector(vad, stt.silenceMs, stt.maxMs, stt.minMs, onsetMs, stt.minSpeechMs)
+        val det = SilenceDetector(vad, stt.silenceMs, stt.maxMs, stt.minMs, onsetMs, stt.minSpeechMs, stt.leadInMs)
         vad.reset()
         val finished =
             withTimeoutOrNull(stt.maxMs.milliseconds + 2.seconds) {

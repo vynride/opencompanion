@@ -23,7 +23,8 @@ class SilenceDetectorTest {
 
     @Test
     fun `stops after trailing silence once speech started`() {
-        val d = SilenceDetector(ScriptedVad(true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 160)
+        val d =
+            SilenceDetector(ScriptedVad(true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 160, leadInMs = 0)
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
@@ -49,7 +50,7 @@ class SilenceDetectorTest {
 
     @Test
     fun `a lone voiced blip is not enough to transcribe at the default bar`() {
-        val d = SilenceDetector(ScriptedVad(true), silenceMs = 160, maxMs = 8000, minMs = 80)
+        val d = SilenceDetector(ScriptedVad(true), silenceMs = 160, maxMs = 8000, minMs = 80, leadInMs = 0)
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
         assertTrue(d.feed(frame))
@@ -61,7 +62,7 @@ class SilenceDetectorTest {
     @Test
     fun `sparse real speech passes the default voiced minimum`() {
         // The model VAD can mark only a fraction of voiced frames, so two hits must pass.
-        val d = SilenceDetector(ScriptedVad(true, false, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80)
+        val d = SilenceDetector(ScriptedVad(true, false, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, leadInMs = 0)
         repeat(4) { assertFalse(d.feed(frame)) }
         assertTrue(d.feed(frame))
         assertTrue(d.hasEnough())
@@ -75,7 +76,7 @@ class SilenceDetectorTest {
             object : Vad {
                 override fun isSpeech(frame: ShortArray): Boolean = false
             }
-        val d = SilenceDetector(AnyVad(blind, EnergyVad(100.0)), silenceMs = 160, maxMs = 8000, minMs = 80)
+        val d = SilenceDetector(AnyVad(blind, EnergyVad(100.0)), silenceMs = 160, maxMs = 8000, minMs = 80, leadInMs = 0)
         val loud = ShortArray(1280) { 1000 }
         val quiet = ShortArray(1280)
         assertFalse(d.feed(loud))
@@ -84,6 +85,37 @@ class SilenceDetectorTest {
         assertTrue(d.feed(quiet))
         assertTrue(d.hasEnough())
         assertEquals(160, d.voicedMs)
+    }
+
+    @Test
+    fun `the wake tail cannot silence-stop the gap before the question`() {
+        // Tail energy in the lead-in, a thinking gap longer than silenceMs, then the
+        // real question; the old detector stopped inside the gap with no speech.
+        val vad = ScriptedVad(true, true, false, false, false, true, true, false, false)
+        val d = SilenceDetector(vad, silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 160, leadInMs = 160)
+        repeat(8) { assertFalse(d.feed(frame)) }
+        assertTrue(d.feed(frame))
+        assertTrue(d.hasEnough())
+        // Only the question's frames count as voiced; the lead-in tail does not.
+        assertEquals(160, d.voicedMs)
+        assertEquals(9 * 1280, d.pcm().size)
+    }
+
+    @Test
+    fun `the vad sees every lead-in frame even though verdicts are discarded`() {
+        var feeds = 0
+        val vad =
+            object : Vad {
+                override fun isSpeech(frame: ShortArray): Boolean {
+                    feeds++
+                    return true
+                }
+            }
+        val d = SilenceDetector(vad, silenceMs = 160, maxMs = 8000, minMs = 80, leadInMs = 240)
+        repeat(3) { assertFalse(d.feed(frame)) }
+        assertEquals(3, feeds)
+        assertFalse(d.speechSeen)
+        assertEquals(0, d.voicedMs)
     }
 
     @Test

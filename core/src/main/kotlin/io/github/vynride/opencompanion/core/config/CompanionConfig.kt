@@ -68,9 +68,13 @@ data class WakeWordConfig(
 data class SttConfig(
     val language: String = "en",
     val vadThreshold: Float = 0.5f,
-    val silenceMs: Int = 700,
+    // Long enough that a mid-sentence thinking pause does not clip the question.
+    val silenceMs: Int = 900,
     val maxMs: Int = 8000,
     val minMs: Int = 300,
+    // The wake phrase's acoustic tail lands at the start of a wake-turn recording;
+    // this window keeps it from arming the silence stop before the real question.
+    val leadInMs: Int = 300,
     // A lone VAD blip must not send a noise-only segment to the STT API. Kept low:
     // the model VAD marks only a fraction of genuinely voiced frames on some mics.
     val minSpeechMs: Int = 100,
