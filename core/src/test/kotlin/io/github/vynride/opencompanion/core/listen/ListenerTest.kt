@@ -49,7 +49,7 @@ class ListenerTest {
                 input.frames,
                 transcriber,
                 vad,
-                SttConfig(silenceMs = 160, maxMs = 800, minMs = 80),
+                SttConfig(silenceMs = 160, maxMs = 800, minMs = 80, minSpeechMs = 160),
                 followupS,
                 Log.Stdout,
                 scope.backgroundScope,
@@ -113,6 +113,36 @@ class ListenerTest {
         h.listener.handle(Wake)
         repeat(4) { h.input.emit(frame) }
         assertEquals(1, calls)
+    }
+
+    @Test
+    fun `a majority-cjk transcript is dropped as a hallucination`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, ScriptedVad(true, true, false, false), Transcriber { "你好世界" })
+        h.listener.handle(Wake)
+        repeat(4) { h.input.emit(frame) }
+        assertEquals(listOf(""), h.transcripts)
+    }
+
+    @Test
+    fun `script filter drops pure cjk for a latin language`() {
+        assertEquals(true, isUnexpectedScript("你好世界", "en"))
+        assertEquals(true, isUnexpectedScript("こんにちは", "en"))
+        assertEquals(true, isUnexpectedScript("안녕하세요", "en"))
+    }
+
+    @Test
+    fun `script filter passes latin, mixed-minority and empty text`() {
+        assertEquals(false, isUnexpectedScript("hello there", "en"))
+        assertEquals(false, isUnexpectedScript("hello 世界 friend", "en"))
+        assertEquals(false, isUnexpectedScript("", "en"))
+        assertEquals(false, isUnexpectedScript("!? 42", "en"))
+    }
+
+    @Test
+    fun `script filter is disabled for cjk languages`() {
+        assertEquals(false, isUnexpectedScript("你好世界", "zh"))
+        assertEquals(false, isUnexpectedScript("こんにちは", "ja"))
+        assertEquals(false, isUnexpectedScript("안녕하세요", "ko"))
     }
 
     @Test

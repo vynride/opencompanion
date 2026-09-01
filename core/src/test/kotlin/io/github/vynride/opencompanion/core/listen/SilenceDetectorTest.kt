@@ -21,7 +21,7 @@ class SilenceDetectorTest {
 
     @Test
     fun `stops after trailing silence once speech started`() {
-        val d = SilenceDetector(ScriptedVad(true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80)
+        val d = SilenceDetector(ScriptedVad(true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 160)
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
@@ -43,6 +43,23 @@ class SilenceDetectorTest {
         assertFalse(d.feed(frame))
         assertFalse(d.feed(frame))
         assertTrue(d.feed(frame))
+    }
+
+    @Test
+    fun `a lone voiced blip is not enough to transcribe`() {
+        val d = SilenceDetector(ScriptedVad(true), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 240)
+        assertFalse(d.feed(frame))
+        assertFalse(d.feed(frame))
+        assertTrue(d.feed(frame))
+        assertFalse(d.hasEnough())
+    }
+
+    @Test
+    fun `sustained speech passes the voiced minimum`() {
+        val d = SilenceDetector(ScriptedVad(true, true, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80, minSpeechMs = 240)
+        repeat(4) { assertFalse(d.feed(frame)) }
+        assertTrue(d.feed(frame))
+        assertTrue(d.hasEnough())
     }
 
     @Test

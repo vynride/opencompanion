@@ -24,6 +24,30 @@ import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+private val CJK_SCRIPTS =
+    setOf(
+        Character.UnicodeScript.HAN,
+        Character.UnicodeScript.HIRAGANA,
+        Character.UnicodeScript.KATAKANA,
+        Character.UnicodeScript.HANGUL,
+    )
+private val CJK_LANGUAGES = setOf("zh", "ja", "ko", "yue", "cmn")
+
+/**
+ * True when a transcript for a non-CJK language is majority CJK letters: STT models
+ * hallucinate such text on noise-only segments, so the transcript is not real speech.
+ */
+internal fun isUnexpectedScript(
+    text: String,
+    language: String,
+): Boolean {
+    if (language.lowercase() in CJK_LANGUAGES) return false
+    val letters = text.filter { it.isLetter() }
+    if (letters.isEmpty()) return false
+    val cjk = letters.count { Character.UnicodeScript.of(it.code) in CJK_SCRIPTS }
+    return cjk * 2 > letters.length
+}
+
 /**
  * One turn per wake: buffer audio until silence, transcribe, publish the Transcript.
  * A PlaybackDone opens a short follow-up listen that needs no wake word; followupS <= 0 disables it.
@@ -80,7 +104,7 @@ class Listener(
 
     /** Collect frames until the detector says stop; empty when too short. */
     suspend fun record(onsetMs: Int): ShortArray {
-        val det = SilenceDetector(vad, stt.silenceMs, stt.maxMs, stt.minMs, onsetMs)
+        val det = SilenceDetector(vad, stt.silenceMs, stt.maxMs, stt.minMs, onsetMs, stt.minSpeechMs)
         vad.reset()
         val finished =
             withTimeoutOrNull(stt.maxMs.milliseconds + 2.seconds) {
@@ -112,6 +136,13 @@ class Listener(
                 return
             }
         log.debug("stt", "transcribed in ${(System.nanoTime() - startNs) / 1_000_000}ms")
+        if (isUnexpectedScript(text, stt.language)) {
+            log.info("listen", "dropping transcript in unexpected script")
+            // Mirror the empty-pcm behavior: wake turns close with an empty
+            // transcript, silent follow-up windows publish nothing.
+            if (onsetMs == 0) bus.publish(Transcript(""))
+            return
+        }
         bus.publish(Transcript(text))
     }
 }

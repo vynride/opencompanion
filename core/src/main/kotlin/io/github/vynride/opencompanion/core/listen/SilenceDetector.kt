@@ -12,13 +12,16 @@ class SilenceDetector(
     maxMs: Int,
     minMs: Int,
     onsetMs: Int = 0,
+    minSpeechMs: Int = 250,
 ) {
     private val silenceFrames = maxOf(1, silenceMs / FRAME_MS)
     private val maxFrames = maxOf(1, maxMs / FRAME_MS)
     private val minFrames = maxOf(1, minMs / FRAME_MS)
     private val onsetFrames = if (onsetMs > 0) maxOf(1, onsetMs / FRAME_MS) else 0
+    private val minSpeechFrames = maxOf(1, minSpeechMs / FRAME_MS)
     private val frames = ArrayList<ShortArray>()
     private var quietRun = 0
+    private var speechFrames = 0
     var speechSeen = false
         private set
 
@@ -27,6 +30,7 @@ class SilenceDetector(
         frames += frame
         if (vad.isSpeech(frame)) {
             speechSeen = true
+            speechFrames++
             quietRun = 0
         } else {
             quietRun++
@@ -46,5 +50,7 @@ class SilenceDetector(
         return out
     }
 
-    fun hasEnough(): Boolean = speechSeen && frames.size >= minFrames
+    // A single VAD-positive blip arms the stop logic but is not worth an API call:
+    // noise-only segments make STT models hallucinate text.
+    fun hasEnough(): Boolean = speechSeen && frames.size >= minFrames && speechFrames >= minSpeechFrames
 }
