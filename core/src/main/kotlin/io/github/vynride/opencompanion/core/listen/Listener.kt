@@ -102,6 +102,7 @@ class Listener(
             bus.publish(Transcript(""))
             return
         }
+        val startNs = System.nanoTime()
         val text =
             try {
                 transcriber.transcribe(wavBytes(pcm, SAMPLE_RATE))
@@ -110,6 +111,7 @@ class Listener(
                 bus.publish(Failure("transcription", e.message.orEmpty()))
                 return
             }
+        log.debug("stt", "transcribed in ${(System.nanoTime() - startNs) / 1_000_000}ms")
         bus.publish(Transcript(text))
     }
 }

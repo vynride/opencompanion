@@ -3,10 +3,12 @@
 package io.github.vynride.opencompanion.core
 
 import io.github.vynride.opencompanion.core.api.ChatClient
+import io.github.vynride.opencompanion.core.api.ConnectionPrewarmer
 import io.github.vynride.opencompanion.core.api.OpenAiSpeechSynth
 import io.github.vynride.opencompanion.core.api.OpenAiTranscriber
 import io.github.vynride.opencompanion.core.brain.Brain
 import io.github.vynride.opencompanion.core.bus.EventBus
+import io.github.vynride.opencompanion.core.bus.Wake
 import io.github.vynride.opencompanion.core.config.CompanionConfig
 import io.github.vynride.opencompanion.core.config.ServiceKind
 import io.github.vynride.opencompanion.core.config.service
@@ -42,11 +44,13 @@ import io.github.vynride.opencompanion.core.wakeword.WakeWordDetector
 import io.github.vynride.opencompanion.core.wakeword.loadOpenWakeWord
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.nio.file.Path
 
@@ -138,6 +142,18 @@ class Companion(
 
         ports.audioInput.start()
         stopFns += ports.audioInput::stop
+
+        // Waking opens the model connections in parallel with listening, so the turn
+        // that follows starts on warm TLS.
+        val prewarmer =
+            ConnectionPrewarmer(
+                http,
+                listOfNotNull(config.service(ServiceKind.CHAT), config.service(ServiceKind.TTS)),
+                log,
+                scope,
+            )
+        val prewarmJob = scope.launch(start = CoroutineStart.UNDISPATCHED) { bus.on<Wake>().collect { prewarmer.prewarm() } }
+        stopFns += { prewarmJob.cancel() }
 
         val registry = toolRegistry
         lateinit var brain: Brain

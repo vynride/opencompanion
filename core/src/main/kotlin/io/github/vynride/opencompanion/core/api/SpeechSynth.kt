@@ -105,6 +105,8 @@ class OpenAiSpeechSynth(
     override suspend fun synthesize(text: String): ByteArray = open(text, "wav").use { it.body.bytes() }
 
     override fun stream(text: String): Flow<ByteArray> = flow {
+        val startNs = System.nanoTime()
+        var first = true
         open(text, "pcm").use { response ->
             val source = response.body.source()
             val buf = ByteArray(STREAM_CHUNK_BYTES)
@@ -112,6 +114,10 @@ class OpenAiSpeechSynth(
             while (true) {
                 val n = source.read(buf, 0, buf.size)
                 if (n <= 0) break
+                if (first) {
+                    first = false
+                    log.debug("tts", "first byte in ${(System.nanoTime() - startNs) / 1_000_000}ms")
+                }
                 val chunk = aligner.align(buf.copyOf(n))
                 if (chunk.isNotEmpty()) emit(chunk)
             }
