@@ -4,6 +4,7 @@ package io.github.vynride.opencompanion.face
 
 import android.content.Context
 import android.graphics.Color
+import android.view.ViewGroup
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -20,8 +21,13 @@ fun buildFaceWebView(context: Context): WebView {
             .addPathHandler("/assets/", AssetsPathHandler(context))
             .build()
     return WebView(context).apply {
+        // Without explicit params the Compose host can measure the layout viewport
+        // to zero height, collapsing every vh unit in the page.
+        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         setBackgroundColor(Color.BLACK)
         settings.javaScriptEnabled = true
+        settings.useWideViewPort = true
+        settings.loadWithOverviewMode = true
         webViewClient =
             object : WebViewClient() {
                 override fun shouldInterceptRequest(

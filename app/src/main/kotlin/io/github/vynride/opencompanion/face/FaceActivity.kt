@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -87,7 +88,9 @@ class FaceActivity : ComponentActivity() {
         showOverLockScreen()
         hideSystemBars()
         setContent {
-            MaterialTheme {
+            // The app lives on black screens; the default scheme is light and
+            // renders its text near-black on them.
+            MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(color = Color.Black) {
                     PermissionGate(onReady = { startAndBindCompanion() }) {
                         FaceContent(faceWebView, onLongPress = { openSettings() })

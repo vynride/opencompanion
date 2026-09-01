@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Modifier
 import io.github.vynride.opencompanion.appGraph
 
@@ -15,7 +16,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val repo = appGraph.settings
         setContent {
-            MaterialTheme {
+            MaterialTheme(colorScheme = darkColorScheme()) {
                 Surface(modifier = Modifier) {
                     SettingsScreen(repo)
                 }
