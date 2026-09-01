@@ -102,8 +102,9 @@ class AndroidAudioOutput(
         var framesWritten = 0L
         var aborted = false
         // Start only after prefill: a streaming track started empty underruns and
-        // gets disabled by the mixer before the first network chunk lands.
-        val prefillFrames = OUTPUT_RATE / 5L
+        // gets disabled by the mixer before the first network chunk lands. A deeper
+        // prefill also keeps short sentences from underrunning right after start.
+        val prefillFrames = OUTPUT_RATE / 3L
         var playing = false
 
         fun ensurePlaying() {
@@ -154,6 +155,11 @@ class AndroidAudioOutput(
             }
             throw e
         } finally {
+            // The field diagnostic for scratchy playback: nonzero means the mixer ran dry.
+            runCatching {
+                val underruns = track.underrunCount
+                if (underruns > 0) log.debug("audio", "underruns=$underruns")
+            }
             runCatching { track.stop() }
             track.release()
             focus?.let { audioManager?.abandonAudioFocusRequest(it) }

@@ -16,11 +16,15 @@ import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
 import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
+import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -104,6 +108,72 @@ class SpeakerTest {
         h.speaker.handle(Reply("Bye now."))
         assertEquals(listOf("All done.", "Bye now."), synth.streamedTexts)
         assertEquals(2, h.events.count { it is PlaybackDone })
+    }
+
+    /** Playback that holds each stream open until released, to observe overlap. */
+    private class GatedOutput : AudioOutput {
+        var plays = 0
+        private val gate = Channel<Unit>(Channel.UNLIMITED)
+
+        override suspend fun playPcm(
+            rateHz: Int,
+            chunks: Flow<ByteArray>,
+        ) {
+            plays++
+            chunks.toList()
+            gate.receive()
+        }
+
+        override suspend fun playWav(wav: ByteArray) = Unit
+
+        fun release() {
+            gate.trySend(Unit)
+        }
+    }
+
+    @Test
+    fun `the next sentence downloads while the current one plays`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth(streamChunks = listOf(pcm))
+        val output = GatedOutput()
+        val bus = EventBus()
+        val events = mutableListOf<Event>()
+        bus.events.onEach { events += it }.launchIn(backgroundScope)
+        val speaker = Speaker(bus, synth, output, Log.Stdout, backgroundScope)
+        speaker.handle(ReplyDelta("One. Two. "))
+        // Sentence one is still playing (gated), yet sentence two's synthesis has begun.
+        assertEquals(1, output.plays)
+        assertEquals(listOf("One.", "Two."), synth.streamedTexts)
+        output.release()
+        output.release()
+        speaker.handle(Reply("One. Two."))
+        assertEquals(2, output.plays)
+        assertEquals(1, events.count { it is PlaybackDone })
+        assertTrue(events.last() is PlaybackDone)
+    }
+
+    @Test
+    fun `stopping the speaker cancels the prefetch in flight`() = runTest(UnconfinedTestDispatcher()) {
+        val started = mutableListOf<String>()
+        val cancelled = mutableListOf<String>()
+        val synth =
+            object : SpeechSynth {
+                override suspend fun synthesize(text: String): ByteArray = ByteArray(0)
+
+                override fun stream(text: String): Flow<ByteArray> = flow {
+                    started += text
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        cancelled += text
+                    }
+                }
+            }
+        val speaker = Speaker(EventBus(), synth, GatedOutput(), Log.Stdout, backgroundScope)
+        speaker.handle(ReplyDelta("One. Two. "))
+        assertEquals(listOf("One.", "Two."), started)
+        assertEquals(emptyList(), cancelled)
+        speaker.stop()
+        assertEquals(setOf("One.", "Two."), cancelled.toSet())
     }
 
     @Test

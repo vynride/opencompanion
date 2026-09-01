@@ -19,6 +19,7 @@ import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedReceiveChannelException
@@ -46,6 +47,7 @@ class Speaker(
     private val mailbox = Mailbox(scope, bus.events, log, "tts", ::handle)
     private var assembler = SentenceAssembler()
     private var deltasSeen = false
+    private var turn: TurnPipeline? = null
 
     fun start() {
         mailbox.start()
@@ -53,6 +55,8 @@ class Speaker(
 
     fun stop() {
         mailbox.stop()
+        turn?.cancel()
+        turn = null
     }
 
     suspend fun handle(event: Event) {
@@ -64,8 +68,9 @@ class Speaker(
             is Say -> speak(event.text, endTurn = false)
 
             is Failure -> {
-                // A failed turn ends without a Reply; drop any half-assembled sentence.
-                resetTurn()
+                // A failed turn ends without a Reply; voice what was already assembled,
+                // drop the half-assembled tail, then apologize.
+                finishTurn()
                 speak("Sorry, ${event.source} is not responding.", endTurn = false)
             }
 
@@ -75,7 +80,15 @@ class Speaker(
 
     private suspend fun onDelta(text: String) {
         deltasSeen = true
-        for (sentence in assembler.push(text)) speakSentence(sentence)
+        for (sentence in assembler.push(text)) {
+            val synth = synth
+            if (synth == null) {
+                log.info("tts", "speech disabled, would say: $sentence")
+                continue
+            }
+            val pipeline = turn ?: TurnPipeline(synth).also { turn = it }
+            pipeline.sentences.send(sentence)
+        }
     }
 
     /** Voice the unspoken remainder of a streamed turn, or the whole text when nothing streamed. */
@@ -85,16 +98,89 @@ class Speaker(
             return
         }
         try {
-            speakSentence(assembler.flush())
+            val rest = assembler.flush()
+            val pipeline = turn
+            if (pipeline != null) {
+                if (rest.isNotBlank()) pipeline.sentences.send(rest)
+                pipeline.finish()
+            } else if (rest.isNotBlank()) {
+                speakSentence(rest)
+            }
         } finally {
             resetTurn()
             bus.publish(PlaybackDone)
         }
     }
 
+    private suspend fun finishTurn() {
+        turn?.finish()
+        resetTurn()
+    }
+
     private fun resetTurn() {
         assembler = SentenceAssembler()
         deltasSeen = false
+        turn = null
+    }
+
+    /**
+     * One streamed turn's playback: sentences play strictly in order while the next one's
+     * synthesis already downloads, so sentence boundaries do not pay TTS first-byte latency.
+     * Cancelling the job cancels the in-flight prefetch with it.
+     */
+    private inner class TurnPipeline(
+        private val synth: SpeechSynth,
+    ) {
+        val sentences = Channel<String>(Channel.UNLIMITED)
+        private val job = scope.launch { run() }
+
+        private suspend fun run() = coroutineScope {
+            // Rendezvous: exactly one synthesis runs ahead of the sentence playing.
+            val fetched = Channel<Fetch>()
+            launch {
+                for (text in sentences) fetched.send(startFetch(this, synth, text))
+                fetched.close()
+            }
+            for (fetch in fetched) {
+                bus.publish(Caption(fetch.text, captionSeconds(fetch.text)))
+                if (!playStreamed(fetch)) speakBuffered(synth, fetch.text)
+            }
+        }
+
+        suspend fun finish() {
+            sentences.close()
+            job.join()
+        }
+
+        fun cancel() {
+            sentences.close()
+            job.cancel()
+        }
+    }
+
+    private class Fetch(
+        val text: String,
+        val chunks: Channel<ByteArray>,
+        val producer: Job,
+    )
+
+    /** Begin downloading one utterance's PCM into a buffered channel. */
+    private fun startFetch(
+        scope: CoroutineScope,
+        synth: SpeechSynth,
+        text: String,
+    ): Fetch {
+        val chunks = Channel<ByteArray>(Channel.UNLIMITED)
+        val producer =
+            scope.launch {
+                try {
+                    synth.stream(text).collect { chunks.send(it) }
+                    chunks.close()
+                } catch (e: IOException) {
+                    chunks.close(e)
+                }
+            }
+        return Fetch(text, chunks, producer)
     }
 
     /** Caption then voice one sentence of a streamed reply; the turn stays open. */
@@ -135,31 +221,26 @@ class Speaker(
         synth: SpeechSynth,
         text: String,
     ): Boolean = coroutineScope {
-        val channel = Channel<ByteArray>(Channel.UNLIMITED)
-        val producer =
-            launch {
-                try {
-                    synth.stream(text).collect { channel.send(it) }
-                    channel.close()
-                } catch (e: IOException) {
-                    channel.close(e)
-                }
-            }
+        playStreamed(startFetch(this, synth, text))
+    }
+
+    /** Plays one fetched utterance; false when its stream never produced a byte. */
+    private suspend fun playStreamed(fetch: Fetch): Boolean {
         val first =
             try {
-                channel.receive()
+                fetch.chunks.receive()
             } catch (e: ClosedReceiveChannelException) {
-                return@coroutineScope true
+                return true
             } catch (e: IOException) {
-                log.error("tts", "speech stream failed for '${text.take(40)}'", e)
-                return@coroutineScope false
+                log.error("tts", "speech stream failed for '${fetch.text.take(40)}'", e)
+                return false
             }
         val mouth = StreamingMouth(rateHz, PCM_RATE)
         val chunks =
             flow {
                 emit(first)
                 try {
-                    for (c in channel) emit(c)
+                    for (c in fetch.chunks) emit(c)
                 } catch (e: IOException) {
                     log.warn("tts", "stream ended mid-utterance", e)
                 }
@@ -169,9 +250,9 @@ class Speaker(
         } finally {
             mouth.flush().forEach { bus.publish(Mouth(it)) }
             bus.publish(Mouth(0f))
-            producer.cancel()
+            fetch.producer.cancel()
         }
-        true
+        return true
     }
 
     /** Buffered fallback: synthesize the whole clip (WAV) then play it while replaying its envelope. */
