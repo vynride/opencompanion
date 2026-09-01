@@ -91,7 +91,9 @@ class FaceActivity : ComponentActivity() {
             // The app lives on black screens; the default scheme is light and
             // renders its text near-black on them.
             MaterialTheme(colorScheme = darkColorScheme()) {
-                Surface(color = Color.Black) {
+                // Pure black matches nothing in the scheme, so the content color must be
+                // explicit or Surface falls back to the default black-on-black.
+                Surface(color = Color.Black, contentColor = Color.White) {
                     PermissionGate(onReady = { startAndBindCompanion() }) {
                         FaceContent(faceWebView, onLongPress = { openSettings() })
                     }
