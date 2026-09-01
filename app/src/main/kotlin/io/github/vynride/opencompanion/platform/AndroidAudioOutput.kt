@@ -9,8 +9,10 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import io.github.vynride.opencompanion.core.Log
+import io.github.vynride.opencompanion.core.audio.Resampler
 import io.github.vynride.opencompanion.core.audio.parseWav
 import io.github.vynride.opencompanion.core.audio.toLittleEndianBytes
+import io.github.vynride.opencompanion.core.audio.toShorts
 import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +24,26 @@ import kotlinx.coroutines.withContext
 // deactivate a track (focus loss, another app) and a blocked track never recovers.
 private const val STALL_MS = 3_000
 private const val POLL_MS = 20L
+
+// Some vendor HALs never consume mono or non-standard-rate tracks, so always open
+// at the mixer's native rate in stereo and convert in-process — the same fallback
+// a media player uses.
+private const val OUTPUT_RATE = 48_000
+private const val BYTES_PER_FRAME = 4
+
+/** Mono little-endian PCM to interleaved stereo at the output rate; one resampler per stream. */
+internal fun monoToStereoBytes(
+    chunk: ByteArray,
+    resampler: Resampler,
+): ByteArray {
+    val mono = resampler.process(chunk.toShorts())
+    val stereo = ShortArray(mono.size * 2)
+    for (i in mono.indices) {
+        stereo[2 * i] = mono[i]
+        stereo[2 * i + 1] = mono[i]
+    }
+    return stereo.toLittleEndianBytes()
+}
 
 class AndroidAudioOutput(
     context: Context,
@@ -38,8 +60,8 @@ class AndroidAudioOutput(
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build()
 
-    private fun track(rateHz: Int): AudioTrack {
-        val min = AudioTrack.getMinBufferSize(rateHz, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
+    private fun track(): AudioTrack {
+        val min = AudioTrack.getMinBufferSize(OUTPUT_RATE, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
         return AudioTrack
             .Builder()
             .setAudioAttributes(attributes)
@@ -47,11 +69,12 @@ class AndroidAudioOutput(
                 AudioFormat
                     .Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(rateHz)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setSampleRate(OUTPUT_RATE)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
                     .build(),
             ).setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(maxOf(min, rateHz))
+            // About half a second of buffered audio.
+            .setBufferSizeInBytes(maxOf(min, OUTPUT_RATE * BYTES_PER_FRAME / 2))
             .build()
     }
 
@@ -74,12 +97,13 @@ class AndroidAudioOutput(
         chunks: Flow<ByteArray>,
     ) = withContext(Dispatchers.IO) {
         val focus = requestFocus()
-        val track = track(rateHz)
+        val track = track()
+        val resampler = Resampler(rateHz, OUTPUT_RATE)
         var framesWritten = 0L
         var aborted = false
         // Start only after prefill: a streaming track started empty underruns and
         // gets disabled by the mixer before the first network chunk lands.
-        val prefillFrames = rateHz / 5L
+        val prefillFrames = OUTPUT_RATE / 5L
         var playing = false
 
         fun ensurePlaying() {
@@ -91,11 +115,12 @@ class AndroidAudioOutput(
         try {
             chunks.collect { chunk ->
                 if (aborted) return@collect
-                if (!writeChunk(track, chunk, ::ensurePlaying)) {
+                val converted = monoToStereoBytes(chunk, resampler)
+                if (!writeChunk(track, converted, ::ensurePlaying)) {
                     aborted = true
                     return@collect
                 }
-                framesWritten += chunk.size / 2
+                framesWritten += converted.size / BYTES_PER_FRAME
                 if (framesWritten >= prefillFrames) ensurePlaying()
             }
             // Short utterances below the prefill threshold must still play.
