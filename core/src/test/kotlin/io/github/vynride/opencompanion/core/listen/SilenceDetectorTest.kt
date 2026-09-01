@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.listen
 
+import io.github.vynride.opencompanion.core.vad.AnyVad
+import io.github.vynride.opencompanion.core.vad.EnergyVad
 import io.github.vynride.opencompanion.core.vad.Vad
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -62,6 +64,24 @@ class SilenceDetectorTest {
         val d = SilenceDetector(ScriptedVad(true, false, true, false, false), silenceMs = 160, maxMs = 8000, minMs = 80)
         repeat(4) { assertFalse(d.feed(frame)) }
         assertTrue(d.feed(frame))
+        assertTrue(d.hasEnough())
+        assertEquals(160, d.voicedMs)
+    }
+
+    @Test
+    fun `a segment voiced only by the energy floor still passes`() {
+        // A blind model VAD credits nothing; the energy member must carry the segment.
+        val blind =
+            object : Vad {
+                override fun isSpeech(frame: ShortArray): Boolean = false
+            }
+        val d = SilenceDetector(AnyVad(blind, EnergyVad(100.0)), silenceMs = 160, maxMs = 8000, minMs = 80)
+        val loud = ShortArray(1280) { 1000 }
+        val quiet = ShortArray(1280)
+        assertFalse(d.feed(loud))
+        assertFalse(d.feed(loud))
+        assertFalse(d.feed(quiet))
+        assertTrue(d.feed(quiet))
         assertTrue(d.hasEnough())
         assertEquals(160, d.voicedMs)
     }

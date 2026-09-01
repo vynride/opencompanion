@@ -36,6 +36,7 @@ import io.github.vynride.opencompanion.core.tools.lookTool
 import io.github.vynride.opencompanion.core.tools.memoryTools
 import io.github.vynride.opencompanion.core.tools.searchTool
 import io.github.vynride.opencompanion.core.tools.weatherTool
+import io.github.vynride.opencompanion.core.vad.AnyVad
 import io.github.vynride.opencompanion.core.vad.EnergyVad
 import io.github.vynride.opencompanion.core.vad.Vad
 import io.github.vynride.opencompanion.core.vad.loadSileroVad
@@ -53,6 +54,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.nio.file.Path
+
+// Shared by the wake gate and the listen floor; proven on-device: idle-room
+// frames stay below it, speech clears it.
+private const val ENERGY_FLOOR_RMS = 100.0
 
 class Ports(
     val audioInput: AudioInput,
@@ -116,7 +121,10 @@ class Companion(
         stateMachine.start()
         stopFns += stateMachine::stop
 
-        val listenVad = vad(config.stt.vadThreshold)
+        // The model VAD can go intermittently blind on some mics while the wake model
+        // still scores the same frames, so the proven energy floor guarantees voiced
+        // frames count; the voiced-minimum and script guards absorb the noise cost.
+        val listenVad = AnyVad(vad(config.stt.vadThreshold), EnergyVad(ENERGY_FLOOR_RMS))
         val transcriber = config.service(ServiceKind.TRANSCRIBE)?.let { OpenAiTranscriber(http, it, config.stt.language, log) }
         if (transcriber == null) log.warn("companion", "transcription disabled: set the transcribe model and api key")
         val listener =
@@ -134,7 +142,7 @@ class Companion(
             // The wake gate only exists to save compute during true silence: energy is
             // cheap and permissive, where a model VAD costs inference per frame and
             // parks quiet speech. The threshold sits well below audible speech.
-            val gate = if (config.wakeWord.vadGate) EnergyVad(100.0) else null
+            val gate = if (config.wakeWord.vadGate) EnergyVad(ENERGY_FLOOR_RMS) else null
             val detector = WakeWordDetector(bus, predictor, config.wakeWord, stateMachine::isArmed, gate, log, scope)
             detector.start(ports.audioInput.frames)
             stopFns += detector::stop
