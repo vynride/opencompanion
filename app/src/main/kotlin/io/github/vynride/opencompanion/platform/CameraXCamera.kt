@@ -104,7 +104,9 @@ class CameraXCamera(
 }
 
 private class CaptureLifecycleOwner : LifecycleOwner {
-    private val registry = LifecycleRegistry(this)
+    // createUnsafe skips the main-thread check: construction happens on the service's
+    // build dispatcher, while start()/stop() only ever run on Main during a capture.
+    private val registry = LifecycleRegistry.createUnsafe(this)
     override val lifecycle: Lifecycle get() = registry
 
     init {

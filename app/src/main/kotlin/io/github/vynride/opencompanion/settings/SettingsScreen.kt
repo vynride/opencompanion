@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.github.vynride.opencompanion.R
 import io.github.vynride.opencompanion.service.CompanionService
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -60,7 +61,16 @@ fun SettingsScreen(repo: SettingsRepository) {
     val settings by repo.flow.collectAsState(initial = Settings())
     // Writes must outlive the composition: fields flush unsaved edits on dispose, and the
     // composition scope is cancelled in that same pass, dropping anything launched into it.
-    val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+    // The handler keeps a failed write (disk error, unreadable import) from killing the process.
+    val scope =
+        remember {
+            CoroutineScope(
+                SupervisorJob() + Dispatchers.Main.immediate +
+                    CoroutineExceptionHandler { _, e ->
+                        android.util.Log.e("oc.settings", "settings write failed", e)
+                    },
+            )
+        }
     val context = LocalContext.current
 
     Column(

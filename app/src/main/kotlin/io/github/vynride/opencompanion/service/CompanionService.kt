@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -86,6 +87,9 @@ class CompanionService : Service() {
                 companion?.stop()
                 companion = null
                 val built = build()
+                // Bail before starting anything so a destroy-time join returns promptly;
+                // nothing to release here, resources are only acquired in start().
+                ensureActive()
                 companion = built
                 built.start()
             }
