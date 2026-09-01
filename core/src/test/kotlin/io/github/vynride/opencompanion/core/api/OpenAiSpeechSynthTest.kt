@@ -51,4 +51,31 @@ class OpenAiSpeechSynthTest {
             assertEquals("pcm", body["response_format"]!!.jsonPrimitive.content)
         }
     }
+
+    @Test
+    fun `stream drops at most one trailing byte of an odd body and keeps chunks even`() = runTest {
+        MockWebServer().use { server ->
+            val pcm = ByteArray(10001) { it.toByte() }
+            server.enqueue(MockResponse.Builder().body(Buffer().write(pcm)).build())
+            server.start()
+            val chunks = synth(server).stream("hello").toList()
+            assertEquals(emptyList(), chunks.filter { it.size % 2 != 0 })
+            assertContentEquals(pcm.copyOf(10000), chunks.fold(ByteArray(0)) { a, b -> a + b })
+        }
+    }
+
+    @Test
+    fun `the aligner carries odd boundaries without losing bytes`() {
+        val input = ByteArray(13) { it.toByte() }
+        val aligner = SampleAligner()
+        var read = 0
+        val out = mutableListOf<ByteArray>()
+        for (size in listOf(3, 5, 4, 1)) {
+            out += aligner.align(input.copyOfRange(read, read + size))
+            read += size
+        }
+        assertEquals(emptyList(), out.filter { it.size % 2 != 0 })
+        // Everything except the final truncated byte survives, in order.
+        assertContentEquals(input.copyOf(12), out.fold(ByteArray(0)) { a, b -> a + b })
+    }
 }

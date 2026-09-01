@@ -28,6 +28,34 @@ interface SpeechSynth {
     fun stream(text: String): Flow<ByteArray>
 }
 
+/**
+ * Re-chunks a byte stream so every output has even length: network reads split
+ * anywhere, and a dropped or split byte shifts every 16-bit sample after it.
+ */
+internal class SampleAligner {
+    private var carry: Byte = 0
+    private var hasCarry = false
+
+    fun align(chunk: ByteArray): ByteArray {
+        val total = (if (hasCarry) 1 else 0) + chunk.size
+        val keep = total - total % 2
+        val out = ByteArray(keep)
+        var offset = 0
+        if (hasCarry && keep > 0) {
+            out[0] = carry
+            offset = 1
+        }
+        System.arraycopy(chunk, 0, out, offset, keep - offset)
+        if (total > keep) {
+            if (chunk.isNotEmpty()) carry = chunk[chunk.size - 1]
+            hasCarry = true
+        } else {
+            hasCarry = false
+        }
+        return out
+    }
+}
+
 /** Text -> audio via `audio/speech`. */
 class OpenAiSpeechSynth(
     private val http: OkHttpClient,
@@ -80,11 +108,14 @@ class OpenAiSpeechSynth(
         open(text, "pcm").use { response ->
             val source = response.body.source()
             val buf = ByteArray(STREAM_CHUNK_BYTES)
+            val aligner = SampleAligner()
             while (true) {
                 val n = source.read(buf, 0, buf.size)
                 if (n <= 0) break
-                emit(buf.copyOf(n))
+                val chunk = aligner.align(buf.copyOf(n))
+                if (chunk.isNotEmpty()) emit(chunk)
             }
+            // A byte still carried at stream end can only be a truncated sample; drop it.
         }
     }.flowOn(Dispatchers.IO)
 }
