@@ -10,6 +10,7 @@ import io.github.vynride.opencompanion.core.bus.Event
 import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.bus.Transcript
 import io.github.vynride.opencompanion.core.config.BrainConfig
@@ -192,6 +193,13 @@ class BrainTest {
         val journal = h.memory.journalToday()
         assertTrue("user: hi" in journal)
         assertTrue("soc: Hello there." in journal)
+    }
+
+    @Test
+    fun `chat deltas are republished as reply deltas`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, dir, scripted(assistant("Hello there.")))
+        h.brain.handle("hi")
+        assertEquals(listOf(ReplyDelta("Hello there.")), h.events.filterIsInstance<ReplyDelta>())
     }
 
     @Test

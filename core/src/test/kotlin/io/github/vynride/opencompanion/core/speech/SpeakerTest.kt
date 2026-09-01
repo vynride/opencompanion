@@ -14,6 +14,7 @@ import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.Mouth
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,7 @@ class SpeakerTest {
         private val wav: ByteArray = wavBytes(ShortArray(1600) { 3000 }, 16000),
     ) : SpeechSynth {
         var synthCalls = 0
+        val streamedTexts = mutableListOf<String>()
 
         override suspend fun synthesize(text: String): ByteArray {
             synthCalls++
@@ -46,6 +48,7 @@ class SpeakerTest {
 
         override fun stream(text: String): Flow<ByteArray> = flow {
             if (streamFails) throw IOException("no stream")
+            streamedTexts += text
             streamChunks?.forEach { emit(it) }
         }
     }
@@ -74,6 +77,33 @@ class SpeakerTest {
         assertTrue(h.events.any { it is Mouth && it.level > 0f })
         assertEquals(Mouth(0f), h.events.filterIsInstance<Mouth>().last())
         assertTrue(h.events.last() is PlaybackDone)
+    }
+
+    @Test
+    fun `streamed deltas speak sentence by sentence and reply closes the turn once`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth(streamChunks = listOf(pcm))
+        val h = Harness(this, synth)
+        h.speaker.handle(ReplyDelta("Hello there. How"))
+        h.speaker.handle(ReplyDelta(" are you?"))
+        h.speaker.handle(Reply("Hello there. How are you?"))
+        assertEquals(listOf("Hello there.", "How are you?"), synth.streamedTexts)
+        assertEquals(listOf("Hello there.", "How are you?"), h.events.filterIsInstance<Caption>().map { it.text })
+        assertEquals(1, h.events.count { it is PlaybackDone })
+        assertTrue(h.events.last() is PlaybackDone)
+    }
+
+    @Test
+    fun `a fully spoken stream leaves no remainder and the next turn starts fresh`() = runTest(UnconfinedTestDispatcher()) {
+        val synth = FakeSynth(streamChunks = listOf(pcm))
+        val h = Harness(this, synth)
+        h.speaker.handle(ReplyDelta("All done. "))
+        h.speaker.handle(Reply("All done."))
+        assertEquals(listOf("All done."), synth.streamedTexts)
+        assertEquals(1, h.events.count { it is PlaybackDone })
+        // The delta bookkeeping is gone: a plain Reply speaks its whole text again.
+        h.speaker.handle(Reply("Bye now."))
+        assertEquals(listOf("All done.", "Bye now."), synth.streamedTexts)
+        assertEquals(2, h.events.count { it is PlaybackDone })
     }
 
     @Test

@@ -7,6 +7,7 @@ import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Sense
 import io.github.vynride.opencompanion.core.bus.SenseKind
 import io.github.vynride.opencompanion.core.bus.StateChanged
@@ -55,6 +56,18 @@ class StateMachineTest {
         h.sm.handle(Wake)
         h.sm.handle(Transcript("hello"))
         h.sm.handle(Reply("hi"))
+        h.sm.handle(PlaybackDone)
+        advanceTimeBy(1)
+        assertEquals(listOf(State.LISTENING, State.THINKING, State.SPEAKING, State.IDLE), h.changes)
+    }
+
+    @Test
+    fun `the first reply delta already enters speaking and the reply is idempotent`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, config())
+        h.sm.handle(Wake)
+        h.sm.handle(Transcript("hello"))
+        h.sm.handle(ReplyDelta("Hi"))
+        h.sm.handle(Reply("Hi there."))
         h.sm.handle(PlaybackDone)
         advanceTimeBy(1)
         assertEquals(listOf(State.LISTENING, State.THINKING, State.SPEAKING, State.IDLE), h.changes)

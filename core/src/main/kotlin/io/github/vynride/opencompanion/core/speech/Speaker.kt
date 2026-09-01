@@ -15,6 +15,7 @@ import io.github.vynride.opencompanion.core.bus.Mailbox
 import io.github.vynride.opencompanion.core.bus.Mouth
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.ports.AudioOutput
 import kotlinx.coroutines.CoroutineScope
@@ -43,6 +44,8 @@ class Speaker(
     private val rateHz: Int = 20,
 ) {
     private val mailbox = Mailbox(scope, bus.events, log, "tts", ::handle)
+    private var assembler = SentenceAssembler()
+    private var deltasSeen = false
 
     fun start() {
         mailbox.start()
@@ -54,11 +57,56 @@ class Speaker(
 
     suspend fun handle(event: Event) {
         when (event) {
-            is Reply -> speak(event.text, endTurn = true)
+            is ReplyDelta -> onDelta(event.text)
+
+            is Reply -> onReply(event.text)
+
             is Say -> speak(event.text, endTurn = false)
-            is Failure -> speak("Sorry, ${event.source} is not responding.", endTurn = false)
+
+            is Failure -> {
+                // A failed turn ends without a Reply; drop any half-assembled sentence.
+                resetTurn()
+                speak("Sorry, ${event.source} is not responding.", endTurn = false)
+            }
+
             else -> Unit
         }
+    }
+
+    private suspend fun onDelta(text: String) {
+        deltasSeen = true
+        for (sentence in assembler.push(text)) speakSentence(sentence)
+    }
+
+    /** Voice the unspoken remainder of a streamed turn, or the whole text when nothing streamed. */
+    private suspend fun onReply(text: String) {
+        if (!deltasSeen) {
+            speak(text, endTurn = true)
+            return
+        }
+        try {
+            speakSentence(assembler.flush())
+        } finally {
+            resetTurn()
+            bus.publish(PlaybackDone)
+        }
+    }
+
+    private fun resetTurn() {
+        assembler = SentenceAssembler()
+        deltasSeen = false
+    }
+
+    /** Caption then voice one sentence of a streamed reply; the turn stays open. */
+    private suspend fun speakSentence(text: String) {
+        val stripped = text.trim()
+        if (stripped.isEmpty()) return
+        if (synth == null) {
+            log.info("tts", "speech disabled, would say: $stripped")
+            return
+        }
+        bus.publish(Caption(stripped, captionSeconds(stripped)))
+        if (!speakStreamed(synth, stripped)) speakBuffered(synth, stripped)
     }
 
     suspend fun speak(

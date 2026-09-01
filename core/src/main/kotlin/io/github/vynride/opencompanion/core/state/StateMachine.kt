@@ -8,6 +8,7 @@ import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.PlaybackDone
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Sense
 import io.github.vynride.opencompanion.core.bus.SenseKind
 import io.github.vynride.opencompanion.core.bus.StateChanged
@@ -79,12 +80,23 @@ class StateMachine(
     suspend fun handle(event: Event) {
         when (event) {
             is Wake -> onWake()
+
             is Transcript -> onTranscript(event)
+
+            // The first delta means audio is about to start; Reply keeps the same transition
+            // for the non-streamed path and is idempotent after deltas.
+            is ReplyDelta -> onReply()
+
             is Reply -> onReply()
+
             is PlaybackDone -> onPlaybackDone()
+
             is Failure -> onFailure()
+
             is Sense -> onSense(event)
+
             is TimerDone -> hold(State.HAPPY, config.happyHoldS)
+
             else -> Unit
         }
     }

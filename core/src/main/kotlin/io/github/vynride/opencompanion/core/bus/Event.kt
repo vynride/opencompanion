@@ -17,6 +17,11 @@ data class Reply(
     val text: String,
 ) : Event
 
+/** A raw fragment of a streamed reply; the full Reply still closes the turn. */
+data class ReplyDelta(
+    val text: String,
+) : Event
+
 /** Speech that does not end a turn. */
 data class Say(
     val text: String,

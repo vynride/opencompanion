@@ -13,6 +13,7 @@ import io.github.vynride.opencompanion.core.bus.EventBus
 import io.github.vynride.opencompanion.core.bus.Failure
 import io.github.vynride.opencompanion.core.bus.Mailbox
 import io.github.vynride.opencompanion.core.bus.Reply
+import io.github.vynride.opencompanion.core.bus.ReplyDelta
 import io.github.vynride.opencompanion.core.bus.Say
 import io.github.vynride.opencompanion.core.bus.Transcript
 import io.github.vynride.opencompanion.core.config.CompanionConfig
@@ -153,7 +154,9 @@ class Brain(
         while (true) {
             val budget = config.brain.maxToolCalls - spent
             val offered = if (specs.isNotEmpty() && budget > 0) specs else null
-            val msg = llm.chat(messages, offered)
+            // Deltas from every round of the turn are forwarded; text before a tool call
+            // is spoken too and works as a natural filler.
+            val msg = llm.chat(messages, offered) { delta -> bus.tryPublish(ReplyDelta(delta)) }
             val calls = (msg["tool_calls"] as? JsonArray)?.map { it.jsonObject } ?: emptyList()
             val content = ((msg["content"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: "").trim()
             if (calls.isEmpty()) return content

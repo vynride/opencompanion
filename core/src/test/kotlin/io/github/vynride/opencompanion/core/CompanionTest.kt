@@ -131,9 +131,13 @@ class CompanionTest {
     @Test
     fun `a full turn goes through the chat model onto the bus and into the journal`() = runTest(UnconfinedTestDispatcher()) {
         MockWebServer().use { server ->
-            server.enqueue(
-                MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"hello there"}}]}"""),
-            )
+            val sse =
+                """
+                data: {"choices":[{"delta":{"content":"hello there"}}]}
+
+                data: [DONE]
+                """.trimIndent()
+            server.enqueue(MockResponse(body = sse))
             server.start()
             val config =
                 CompanionConfig(

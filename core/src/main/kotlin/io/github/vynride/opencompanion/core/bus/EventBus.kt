@@ -24,5 +24,8 @@ class EventBus(
         flow.emit(event)
     }
 
+    /** For callbacks that cannot suspend; drops the event when the buffer is full. */
+    fun tryPublish(event: Event): Boolean = flow.tryEmit(event)
+
     inline fun <reified T : Event> on(): Flow<T> = events.filterIsInstance<T>()
 }

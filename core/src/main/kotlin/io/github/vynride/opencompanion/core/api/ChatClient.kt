@@ -225,8 +225,7 @@ class ChatClient(
         onDelta: (String) -> Unit,
     ): JsonObject {
         var completed: JsonObject? = null
-        while (true) {
-            val data = source.nextSseData() ?: break
+        source.forEachSseData { data ->
             val obj = json.parseToJsonElement(data).jsonObject
             when (obj.str("type")) {
                 "response.output_text.delta" -> obj.str("delta")?.takeIf { it.isNotEmpty() }?.let(onDelta)
@@ -243,15 +242,14 @@ class ChatClient(
     ): JsonObject {
         val content = StringBuilder()
         val calls = sortedMapOf<Int, ToolCallParts>()
-        while (true) {
-            val data = source.nextSseData() ?: break
+        val sawData = source.forEachSseData { data ->
             val obj = json.parseToJsonElement(data).jsonObject
             val delta =
                 (obj["choices"] as? JsonArray)
                     ?.firstOrNull()
                     ?.jsonObject
                     ?.get("delta")
-                    ?.jsonObject ?: continue
+                    ?.jsonObject ?: return@forEachSseData
             delta.str("content")?.takeIf { it.isNotEmpty() }?.let {
                 content.append(it)
                 onDelta(it)
@@ -266,6 +264,7 @@ class ChatClient(
                 fn?.str("arguments")?.let { parts.arguments.append(it) }
             }
         }
+        check(sawData) { "response is not an event stream" }
         return buildJsonObject {
             put("role", "assistant")
             if (content.isEmpty()) put("content", JsonNull) else put("content", content.toString())
@@ -297,15 +296,18 @@ class ChatClient(
 
 private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
-/** The payload of the next `data:` line, or null at end of stream or a terminal `[DONE]`. */
-private fun BufferedSource.nextSseData(): String? {
+/** Feeds each `data:` payload to [block] until `[DONE]` or EOF; false when no data line arrived. */
+private fun BufferedSource.forEachSseData(block: (String) -> Unit): Boolean {
+    var sawData = false
     while (true) {
-        val line = readUtf8Line() ?: return null
+        val line = readUtf8Line() ?: break
         if (!line.startsWith("data:")) continue
+        sawData = true
         val data = line.removePrefix("data:").trim()
-        if (data == "[DONE]") return null
-        if (data.isNotEmpty()) return data
+        if (data == "[DONE]") break
+        if (data.isNotEmpty()) block(data)
     }
+    return sawData
 }
 
 private fun sinceMs(startNs: Long): Long = (System.nanoTime() - startNs) / 1_000_000
