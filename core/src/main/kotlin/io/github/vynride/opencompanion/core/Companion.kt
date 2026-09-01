@@ -127,7 +127,10 @@ class Companion(
         stopFns += speaker::stop
 
         wakePredictor()?.let { predictor ->
-            val gate = if (config.wakeWord.vadGate) vad(0.5f) else null
+            // The wake gate only exists to save compute during true silence: energy is
+            // cheap and permissive, where a model VAD costs inference per frame and
+            // parks quiet speech. The threshold sits well below audible speech.
+            val gate = if (config.wakeWord.vadGate) EnergyVad(100.0) else null
             val detector = WakeWordDetector(bus, predictor, config.wakeWord, stateMachine::isArmed, gate, log, scope)
             detector.start(ports.audioInput.frames)
             stopFns += detector::stop

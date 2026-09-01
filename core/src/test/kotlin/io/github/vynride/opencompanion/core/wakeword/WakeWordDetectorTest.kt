@@ -111,17 +111,45 @@ class WakeWordDetectorTest {
     }
 
     @Test
-    fun `gate parks frames without speech and replays a pre-roll when speech resumes`() = runTest {
+    fun `gate flicker replays only the parked frames and keeps the predictor context`() = runTest {
         val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
-        val vad = ScriptedVad(ArrayDeque(listOf(false, false, false, false, true)))
+        val vad = ScriptedVad(ArrayDeque(listOf(true, false, false, true)))
         val h = Harness(backgroundScope, p, vad)
-        h.now = 10.seconds
-        repeat(4) { h.detector.process(frame(it)) }
-        assertEquals(0, p.seen.size)
-        h.detector.process(frame(9))
-        assertEquals(listOf(1, 2, 3, 9), p.seen.map { it[0].toInt() })
-        // resuming keeps the predictor's context; a reset would demand a long warmup
+        h.detector.process(frame(1))
+        h.now = 2.seconds
+        h.detector.process(frame(2))
+        h.now = 2.5.seconds
+        h.detector.process(frame(3))
+        assertEquals(1, p.seen.size)
+        // gap under the reset threshold: no reset, replay just the parked frames
+        h.now = 2.9.seconds
+        h.detector.process(frame(4))
+        assertEquals(listOf(1, 2, 3, 4), p.seen.map { it[0].toInt() })
         assertEquals(0, p.resets)
+    }
+
+    @Test
+    fun `a long gap resets the predictor and replays the whole ring`() = runTest {
+        val p = ScriptedPredictor(ArrayDeque(List(10) { 0f }))
+        val vad = ScriptedVad(ArrayDeque(listOf(true, false, false, true)))
+        val h =
+            Harness(
+                backgroundScope,
+                p,
+                vad,
+                config = WakeWordConfig(threshold = 0.5f, refractoryS = 1.0, gateHoldS = 1.5, prerollMs = 400),
+            )
+        h.detector.process(frame(1))
+        h.now = 2.seconds
+        h.detector.process(frame(2))
+        h.now = 2.5.seconds
+        h.detector.process(frame(3))
+        // gap over the reset threshold: reset, then replay everything the ring holds,
+        // the already-scored frame included
+        h.now = 10.seconds
+        h.detector.process(frame(4))
+        assertEquals(1, p.resets)
+        assertEquals(listOf(1, 1, 2, 3, 4), p.seen.map { it[0].toInt() })
     }
 
     @Test
@@ -169,7 +197,7 @@ class WakeWordDetectorTest {
         armed = true
         h.now = 6.seconds
         h.detector.process(frame(5))
-        assertEquals(listOf("frames=4 unarmed=1 gated=1 scored=2 max=${"%.2f".format(0.4f)}"), log.debugLines)
+        assertEquals(listOf("frames=4 unarmed=1 gated=1 scored=2 resets=0 max=${"%.2f".format(0.4f)}"), log.debugLines)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

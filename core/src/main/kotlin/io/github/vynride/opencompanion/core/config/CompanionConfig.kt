@@ -60,7 +60,8 @@ data class WakeWordConfig(
     val refractoryS: Double = 1.0,
     val vadGate: Boolean = true,
     val gateHoldS: Double = 1.5,
-    val prerollMs: Int = 480,
+    // Long enough for a post-reset replay to complete the pipeline warmup in one burst.
+    val prerollMs: Int = 2080,
     val maxQueue: Int = 100,
 )
 
