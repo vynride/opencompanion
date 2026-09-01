@@ -39,7 +39,7 @@ import io.github.vynride.opencompanion.service.CompanionService
 import io.github.vynride.opencompanion.settings.ScreenRelay
 import io.github.vynride.opencompanion.settings.SettingsActivity
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import io.github.vynride.opencompanion.core.Companion as CoreCompanion
@@ -56,16 +56,15 @@ class FaceActivity : ComponentActivity() {
                 service: IBinder?,
             ) {
                 val binder = service as? CompanionService.LocalBinder ?: return
+                // A rebuild swaps the companion instance; collectLatest drops the dead
+                // instance's bus collection and rewires onto the new one.
                 eventsJob =
                     lifecycleScope.launch {
-                        var companion = binder.companion
-                        var attempt = 0
-                        while (companion == null && attempt < 20) {
-                            delay(50)
-                            companion = binder.companion
-                            attempt++
+                        repeatOnLifecycle(Lifecycle.State.STARTED) {
+                            binder.companion.collectLatest { companion ->
+                                if (companion != null) wireCompanion(companion)
+                            }
                         }
-                        companion?.let { wireCompanion(it) }
                     }
             }
 
@@ -74,10 +73,8 @@ class FaceActivity : ComponentActivity() {
 
     private suspend fun wireCompanion(companion: CoreCompanion) {
         FaceMessages.forEvent(StateChanged(companion.state.value))?.let(faceWebView::push)
-        repeatOnLifecycle(Lifecycle.State.STARTED) {
-            companion.bus.events.collect { event ->
-                FaceMessages.forEvent(event)?.let(faceWebView::push)
-            }
+        companion.bus.events.collect { event ->
+            FaceMessages.forEvent(event)?.let(faceWebView::push)
         }
     }
 

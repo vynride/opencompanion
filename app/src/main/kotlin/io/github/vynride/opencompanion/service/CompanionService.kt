@@ -32,6 +32,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -41,14 +43,20 @@ import java.time.ZoneId
 
 class CompanionService : Service() {
     inner class LocalBinder : Binder() {
-        val companion: Companion? get() = this@CompanionService.companion
+        // A flow, not a snapshot: a rebuild swaps the instance in place and bound
+        // clients must rewire to the new one instead of collecting a dead bus.
+        val companion: StateFlow<Companion?> get() = this@CompanionService.companionFlow
     }
 
     private val binder = LocalBinder()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var buildJob: Job? = null
-
-    @Volatile private var companion: Companion? = null
+    private val companionFlow = MutableStateFlow<Companion?>(null)
+    private var companion: Companion?
+        get() = companionFlow.value
+        set(value) {
+            companionFlow.value = value
+        }
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -78,7 +86,7 @@ class CompanionService : Service() {
     }
 
     // Building reads settings and loads models, so it runs off the main thread; the face
-    // activity retries the binder until the companion appears.
+    // activity observes the binder's flow and wires up when the companion appears.
     private fun rebuild() {
         val previous = buildJob
         buildJob =
