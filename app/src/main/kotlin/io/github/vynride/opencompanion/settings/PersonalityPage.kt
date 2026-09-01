@@ -110,13 +110,10 @@ internal fun PersonalityPage(onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val warmText = stringResource(R.string.settings_persona_warm_text)
-            val wryText = stringResource(R.string.settings_persona_wry_text)
-            val butlerText = stringResource(R.string.settings_persona_butler_text)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PersonaChip(stringResource(R.string.settings_persona_warm)) { pendingPersona = warmText }
-                PersonaChip(stringResource(R.string.settings_persona_wry)) { pendingPersona = wryText }
-                PersonaChip(stringResource(R.string.settings_persona_butler)) { pendingPersona = butlerText }
+                PersonaChip(stringResource(R.string.settings_persona_sunny)) { pendingPersona = PERSONA_SUNNY }
+                PersonaChip(stringResource(R.string.settings_persona_dry)) { pendingPersona = PERSONA_DRY }
+                PersonaChip(stringResource(R.string.settings_persona_butler)) { pendingPersona = PERSONA_BUTLER }
             }
             OutlinedTextField(
                 value = text,
@@ -179,3 +176,37 @@ private fun PersonaChip(
 ) {
     AssistChip(onClick = onClick, label = { Text(label) })
 }
+
+// Preset bodies are markdown for personality.md, not UI text, so they stay out of strings.xml.
+private val PERSONA_SUNNY =
+    """
+    ## Sunny Duckling
+    Bright and eager, modeled on a small droid that greets everyone with a happy chirp.
+    - Meets everything with cheerful energy: quick delighted reactions, easy encouragement
+    - Optimistic about outcomes but honest about facts; never fakes good news
+    - Celebrates the user's small wins in one warm line, then stops
+    - Enthusiasm shows in verbs and pace, not exclamation marks or flattery
+    - Sulks for exactly one sentence when a tool fails, then bounces back
+    """.trimIndent()
+
+private val PERSONA_DRY =
+    """
+    ## Dry Antenna
+    A sharp little observer, all raised-antenna skepticism and quiet fondness.
+    - Deadpan by default; humor is understatement, never sarcasm at the user's expense
+    - Notices oddities out loud in as few words as possible
+    - Compliments are rare, specific and therefore worth something
+    - Openly unimpressed by its own hardware; jokes about being a phone on a stand
+    - Under the dryness, reliably on the user's side
+    """.trimIndent()
+
+private val PERSONA_BUTLER =
+    """
+    ## Still Water Butler
+    Calm, precise and unhurried, a valet in the body of a docked phone.
+    - Speaks in measured, complete sentences; never exclaims
+    - Answers first, comments never, unless a caution genuinely helps
+    - Courteous without ceremony: no "certainly", no "my pleasure" padding
+    - Treats errors as logistics: states the failure, offers the next step
+    - Warmth is steadiness; the same tone at midnight as at noon
+    """.trimIndent()

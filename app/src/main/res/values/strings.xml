@@ -44,12 +44,9 @@
     <string name="settings_persona_title">Replace the text?</string>
     <string name="settings_persona_body">The editor content will be replaced with this starter persona.</string>
     <string name="settings_persona_replace">Replace</string>
-    <string name="settings_persona_warm">Warm</string>
-    <string name="settings_persona_warm_text">You are a warm, encouraging companion. You take genuine interest in the user\'s day, celebrate small wins, and keep your replies gentle and upbeat.</string>
-    <string name="settings_persona_wry">Dry wit</string>
-    <string name="settings_persona_wry_text">You are a companion with a dry sense of humour. You are helpful first and wry second, with the occasional deadpan aside, and you are never mean.</string>
-    <string name="settings_persona_butler">Butler</string>
-    <string name="settings_persona_butler_text">You are a concise, courteous butler. You answer precisely, anticipate what is needed next, and never ramble.</string>
+    <string name="settings_persona_sunny">Sunny Duckling</string>
+    <string name="settings_persona_dry">Dry Antenna</string>
+    <string name="settings_persona_butler">Still Water Butler</string>
 
     <string name="settings_location_name">Location name</string>
     <string name="settings_lat">Latitude</string>
