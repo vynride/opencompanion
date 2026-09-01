@@ -44,8 +44,9 @@ import kotlin.time.Duration.Companion.seconds
 
 const val LENGTH_RULE =
     "Reply in ONE short spoken sentence (two only if truly needed); the reply is " +
-        "read aloud and shown as a caption, so be brief and conversational. No markdown, " +
-        "no lists, no dashes as punctuation: use commas or periods."
+        "read aloud and shown as a caption, so be brief and conversational. Write for " +
+        "the ear: plain words, natural rhythm, and vary your openings so you never " +
+        "sound canned. No markdown, no lists, no dashes as punctuation: use commas or periods."
 const val NO_LLM_REPLY = "My language model is not configured."
 const val OUT_OF_STEPS = "I ran out of steps; ask me again."
 const val SKIPPED_CALL = "Skipped: this turn's tool call budget is spent. Answer with what you already have."
