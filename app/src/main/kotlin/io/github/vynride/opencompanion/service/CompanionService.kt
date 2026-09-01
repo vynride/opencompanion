@@ -131,7 +131,7 @@ class CompanionService : Service() {
         val ports =
             Ports(
                 audioInput = AndroidAudioInput(graph.log),
-                audioOutput = AndroidAudioOutput(),
+                audioOutput = AndroidAudioOutput(this, graph.log),
                 camera = camera,
                 sensors = AndroidSensors(this),
                 screen = ScreenRelay,
