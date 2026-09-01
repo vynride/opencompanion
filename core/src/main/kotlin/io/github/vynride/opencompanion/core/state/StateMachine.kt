@@ -31,6 +31,9 @@ data class StateConfig(
     val noticingHoldS: Double = 1.5,
     val followupS: Double = 6.0,
     val listenTimeoutS: Double = 14.0,
+    // Generous watchdogs; they only catch a wedged pipeline, never a slow turn.
+    val thinkingTimeoutS: Double = 60.0,
+    val speakingTimeoutS: Double = 120.0,
 )
 
 private val HOLD_STATES = setOf(State.HAPPY, State.ERROR, State.NOTICING)
@@ -49,6 +52,7 @@ class StateMachine(
     private var sleepJob: Job? = null
     private var holdJob: Job? = null
     private var followupJob: Job? = null
+    private var watchdogJob: Job? = null
     private var beforeHold = State.IDLE
     private var wiring: Job? = null
 
@@ -69,6 +73,7 @@ class StateMachine(
         sleepJob?.cancel()
         holdJob?.cancel()
         followupJob?.cancel()
+        watchdogJob?.cancel()
     }
 
     suspend fun handle(event: Event) {
@@ -87,8 +92,32 @@ class StateMachine(
     private suspend fun set(next: State) {
         if (next == _state.value) return
         _state.value = next
+        armWatchdog(next)
         armSleepTimer()
         bus.publish(StateChanged(next))
+    }
+
+    // THINKING and SPEAKING only leave on an event, so any wedge downstream (a hung
+    // stream, playback that never finishes) would freeze the companion there forever.
+    private fun armWatchdog(state: State) {
+        watchdogJob?.cancel()
+        watchdogJob = null
+        val timeoutS =
+            when (state) {
+                State.THINKING -> config.thinkingTimeoutS
+                State.SPEAKING -> config.speakingTimeoutS
+                else -> return
+            }
+        watchdogJob =
+            scope.launch {
+                delay(timeoutS.seconds)
+                // Detach before transitioning so the rearm inside set() cannot cancel this coroutine.
+                watchdogJob = null
+                if (_state.value == state) {
+                    log.warn("state", "stuck in $state for ${timeoutS}s; returning to idle")
+                    set(State.IDLE)
+                }
+            }
     }
 
     /** Run the idle countdown only while IDLE. */

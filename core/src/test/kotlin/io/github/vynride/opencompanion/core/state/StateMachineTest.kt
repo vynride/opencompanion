@@ -45,7 +45,9 @@ class StateMachineTest {
         noticing: Double = 0.02,
         followup: Double = 0.0,
         listenTimeout: Double = 10.0,
-    ) = StateConfig(sleep, err, happy, noticing, followup, listenTimeout)
+        thinkingTimeout: Double = 60.0,
+        speakingTimeout: Double = 120.0,
+    ) = StateConfig(sleep, err, happy, noticing, followup, listenTimeout, thinkingTimeout, speakingTimeout)
 
     @Test
     fun `full turn`() = runTest(UnconfinedTestDispatcher()) {
@@ -164,6 +166,34 @@ class StateMachineTest {
         h.sm.handle(Wake)
         advanceTimeBy(80)
         assertEquals(State.IDLE, h.sm.state.value)
+    }
+
+    @Test
+    fun `thinking that never resolves times out to idle`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, config(sleep = 10.0, thinkingTimeout = 0.05))
+        h.sm.handle(Wake)
+        h.sm.handle(Transcript("hi"))
+        assertEquals(State.THINKING, h.sm.state.value)
+        advanceTimeBy(80)
+        assertEquals(State.IDLE, h.sm.state.value)
+    }
+
+    @Test
+    fun `speaking that never finishes times out to idle`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, config(sleep = 10.0, speakingTimeout = 0.05))
+        h.sm.handle(Reply("hi"))
+        assertEquals(State.SPEAKING, h.sm.state.value)
+        advanceTimeBy(80)
+        assertEquals(State.IDLE, h.sm.state.value)
+    }
+
+    @Test
+    fun `a normal transition cancels the watchdog`() = runTest(UnconfinedTestDispatcher()) {
+        val h = Harness(this, config(sleep = 10.0, speakingTimeout = 0.05))
+        h.sm.handle(Reply("hi"))
+        h.sm.handle(PlaybackDone)
+        advanceTimeBy(80)
+        assertEquals(listOf(State.SPEAKING, State.IDLE), h.changes)
     }
 
     @Test
