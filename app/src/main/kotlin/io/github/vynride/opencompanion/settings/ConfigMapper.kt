@@ -9,6 +9,7 @@ import io.github.vynride.opencompanion.core.config.CompanionConfig
 import io.github.vynride.opencompanion.core.config.HostsConfig
 import io.github.vynride.opencompanion.core.config.Location
 import io.github.vynride.opencompanion.core.config.SearchConfig
+import io.github.vynride.opencompanion.core.config.ServiceOverride
 import io.github.vynride.opencompanion.core.config.TtsConfig
 import io.github.vynride.opencompanion.core.config.WakeWordConfig
 
@@ -26,6 +27,16 @@ data class Settings(
     val transcribeModel: String = "",
     val ttsModel: String = "",
     val chatApi: String = "",
+    // Per-service endpoint overrides; blank means inherit the shared API settings.
+    val chatBaseUrl: String = "",
+    val chatApiKey: String = "",
+    val chatAuthHeader: String = "",
+    val transcribeBaseUrl: String = "",
+    val transcribeApiKey: String = "",
+    val transcribeAuthHeader: String = "",
+    val ttsBaseUrl: String = "",
+    val ttsApiKey: String = "",
+    val ttsAuthHeader: String = "",
     val voice: String = "",
     val speed: Float = 1.0f,
     val wakeThreshold: Float = 0.4f,
@@ -58,6 +69,9 @@ object ConfigMapper {
                 chatModel = s.chatModel.ifBlank { defaults.api.chatModel },
                 transcribeModel = s.transcribeModel.ifBlank { defaults.api.transcribeModel },
                 ttsModel = s.ttsModel.ifBlank { defaults.api.ttsModel },
+                chat = override(s.chatBaseUrl, s.chatApiKey, s.chatAuthHeader),
+                transcribe = override(s.transcribeBaseUrl, s.transcribeApiKey, s.transcribeAuthHeader),
+                tts = override(s.ttsBaseUrl, s.ttsApiKey, s.ttsAuthHeader),
             ),
             wakeWord =
             defaults.wakeWord.copy(
@@ -89,4 +103,20 @@ object ConfigMapper {
             cameraEnabled = s.cameraEnabled,
         )
     }
+
+    // Blank maps to null so the core merge falls back to the shared values.
+    private fun override(
+        baseUrl: String,
+        apiKey: String,
+        authHeader: String,
+    ) = ServiceOverride(
+        baseUrl = baseUrl.takeIf { it.isNotBlank() },
+        apiKey = apiKey.takeIf { it.isNotBlank() },
+        authHeader =
+        when (authHeader) {
+            "authorization" -> AuthHeader.AUTHORIZATION
+            "api-key" -> AuthHeader.API_KEY
+            else -> null
+        },
+    )
 }

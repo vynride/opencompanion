@@ -158,6 +158,36 @@ fun SettingsScreen(repo: SettingsRepository) {
             )
         }
 
+        Group(stringResource(R.string.settings_group_api_overrides)) {
+            ServiceOverrideFields(
+                service = stringResource(R.string.settings_override_chat),
+                baseUrl = settings.chatBaseUrl,
+                apiKey = settings.chatApiKey,
+                authHeader = settings.chatAuthHeader,
+                onBaseUrl = { scope.launch { repo.setChatBaseUrl(it) } },
+                onApiKey = { scope.launch { repo.setChatApiKey(it) } },
+                onAuthHeader = { scope.launch { repo.setChatAuthHeader(it) } },
+            )
+            ServiceOverrideFields(
+                service = stringResource(R.string.settings_override_transcribe),
+                baseUrl = settings.transcribeBaseUrl,
+                apiKey = settings.transcribeApiKey,
+                authHeader = settings.transcribeAuthHeader,
+                onBaseUrl = { scope.launch { repo.setTranscribeBaseUrl(it) } },
+                onApiKey = { scope.launch { repo.setTranscribeApiKey(it) } },
+                onAuthHeader = { scope.launch { repo.setTranscribeAuthHeader(it) } },
+            )
+            ServiceOverrideFields(
+                service = stringResource(R.string.settings_override_tts),
+                baseUrl = settings.ttsBaseUrl,
+                apiKey = settings.ttsApiKey,
+                authHeader = settings.ttsAuthHeader,
+                onBaseUrl = { scope.launch { repo.setTtsBaseUrl(it) } },
+                onApiKey = { scope.launch { repo.setTtsApiKey(it) } },
+                onAuthHeader = { scope.launch { repo.setTtsAuthHeader(it) } },
+            )
+        }
+
         Group(stringResource(R.string.settings_group_voice)) {
             LabeledField(
                 label = stringResource(R.string.settings_voice),
@@ -300,6 +330,37 @@ private fun Group(
     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
     Text(title, style = MaterialTheme.typography.titleMedium)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { content() }
+}
+
+/** One service's endpoint overrides; blank fields and the inherit choice fall back to the shared API settings. */
+@Composable
+private fun ServiceOverrideFields(
+    service: String,
+    baseUrl: String,
+    apiKey: String,
+    authHeader: String,
+    onBaseUrl: (String) -> Unit,
+    onApiKey: (String) -> Unit,
+    onAuthHeader: (String) -> Unit,
+) {
+    Text(service, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+    LabeledField(
+        label = stringResource(R.string.settings_base_url),
+        value = baseUrl,
+        onChange = onBaseUrl,
+    )
+    LabeledField(
+        label = stringResource(R.string.settings_api_key),
+        value = apiKey,
+        onChange = onApiKey,
+        visualTransformation = PasswordVisualTransformation(),
+    )
+    Dropdown(
+        label = stringResource(R.string.settings_auth_header),
+        options = listOf("inherit", "authorization", "api-key"),
+        selected = authHeader.ifBlank { "inherit" },
+        onSelect = { onAuthHeader(if (it == "inherit") "" else it) },
+    )
 }
 
 /** Edits locally and persists once, on focus loss, so typing never hits the store per keystroke. */

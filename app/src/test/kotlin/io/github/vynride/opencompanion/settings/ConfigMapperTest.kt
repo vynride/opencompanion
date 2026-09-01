@@ -5,6 +5,9 @@ package io.github.vynride.opencompanion.settings
 import io.github.vynride.opencompanion.core.config.AuthHeader
 import io.github.vynride.opencompanion.core.config.ChatApi
 import io.github.vynride.opencompanion.core.config.CompanionConfig
+import io.github.vynride.opencompanion.core.config.ServiceKind
+import io.github.vynride.opencompanion.core.config.ServiceOverride
+import io.github.vynride.opencompanion.core.config.service
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -91,6 +94,64 @@ class ConfigMapperTest {
         assertEquals("Somewhere", config.location.name)
         assertEquals(defaults.location.lat, config.location.lat)
         assertEquals(defaults.location.lon, config.location.lon)
+    }
+
+    @Test
+    fun `blank service overrides inherit the shared api settings`() {
+        val config =
+            ConfigMapper.toConfig(
+                Settings(baseUrl = "https://shared.test/v1", apiKey = "sk-shared", chatModel = "m", transcribeModel = "m", ttsModel = "m"),
+            )
+
+        assertEquals(ServiceOverride(), config.api.chat)
+        assertEquals(ServiceOverride(), config.api.transcribe)
+        assertEquals(ServiceOverride(), config.api.tts)
+        val tts = config.service(ServiceKind.TTS)!!
+        assertEquals("https://shared.test/v1", tts.baseUrl)
+        assertEquals("sk-shared", tts.apiKey)
+        assertEquals(AuthHeader.AUTHORIZATION, tts.authHeader)
+    }
+
+    @Test
+    fun `set service overrides replace the shared api settings per service`() {
+        val config =
+            ConfigMapper.toConfig(
+                Settings(
+                    baseUrl = "https://shared.test/v1",
+                    apiKey = "sk-shared",
+                    chatModel = "m",
+                    transcribeModel = "m",
+                    ttsModel = "m",
+                    ttsBaseUrl = "https://other.test/v1",
+                    ttsApiKey = "sk-tts",
+                    ttsAuthHeader = "api-key",
+                ),
+            )
+
+        val tts = config.service(ServiceKind.TTS)!!
+        assertEquals("https://other.test/v1", tts.baseUrl)
+        assertEquals("sk-tts", tts.apiKey)
+        assertEquals(AuthHeader.API_KEY, tts.authHeader)
+        // the other services still inherit
+        val chat = config.service(ServiceKind.CHAT)!!
+        assertEquals("https://shared.test/v1", chat.baseUrl)
+        assertEquals("sk-shared", chat.apiKey)
+        assertEquals(AuthHeader.AUTHORIZATION, chat.authHeader)
+    }
+
+    @Test
+    fun `a query string in an override base url reaches the request url intact`() {
+        val config =
+            ConfigMapper.toConfig(
+                Settings(
+                    apiKey = "sk-shared",
+                    transcribeModel = "m",
+                    transcribeBaseUrl = "https://res.test/openai/deployments/stt?api-version=2024-06-01",
+                ),
+            )
+
+        val url = config.service(ServiceKind.TRANSCRIBE)!!.url("audio/transcriptions")
+        assertEquals("https://res.test/openai/deployments/stt/audio/transcriptions?api-version=2024-06-01", url)
     }
 
     @Test

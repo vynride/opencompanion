@@ -35,6 +35,15 @@ private object Keys {
     val transcribeModel = stringPreferencesKey("transcribe_model")
     val ttsModel = stringPreferencesKey("tts_model")
     val chatApi = stringPreferencesKey("chat_api")
+    val chatBaseUrl = stringPreferencesKey("chat_base_url")
+    val chatApiKey = stringPreferencesKey("chat_api_key")
+    val chatAuthHeader = stringPreferencesKey("chat_auth_header")
+    val transcribeBaseUrl = stringPreferencesKey("transcribe_base_url")
+    val transcribeApiKey = stringPreferencesKey("transcribe_api_key")
+    val transcribeAuthHeader = stringPreferencesKey("transcribe_auth_header")
+    val ttsBaseUrl = stringPreferencesKey("tts_base_url")
+    val ttsApiKey = stringPreferencesKey("tts_api_key")
+    val ttsAuthHeader = stringPreferencesKey("tts_auth_header")
     val voice = stringPreferencesKey("voice")
     val speed = floatPreferencesKey("speed")
     val wakeThreshold = floatPreferencesKey("wake_threshold")
@@ -65,6 +74,15 @@ class SettingsRepository(
                 transcribeModel = prefs[Keys.transcribeModel] ?: "",
                 ttsModel = prefs[Keys.ttsModel] ?: "",
                 chatApi = prefs[Keys.chatApi] ?: "",
+                chatBaseUrl = prefs[Keys.chatBaseUrl] ?: "",
+                chatApiKey = prefs[Keys.chatApiKey] ?: "",
+                chatAuthHeader = prefs[Keys.chatAuthHeader] ?: "",
+                transcribeBaseUrl = prefs[Keys.transcribeBaseUrl] ?: "",
+                transcribeApiKey = prefs[Keys.transcribeApiKey] ?: "",
+                transcribeAuthHeader = prefs[Keys.transcribeAuthHeader] ?: "",
+                ttsBaseUrl = prefs[Keys.ttsBaseUrl] ?: "",
+                ttsApiKey = prefs[Keys.ttsApiKey] ?: "",
+                ttsAuthHeader = prefs[Keys.ttsAuthHeader] ?: "",
                 voice = prefs[Keys.voice] ?: "",
                 speed = prefs[Keys.speed] ?: 1.0f,
                 wakeThreshold = prefs[Keys.wakeThreshold] ?: 0.4f,
@@ -108,6 +126,24 @@ class SettingsRepository(
     suspend fun setTtsModel(value: String) = update { it[Keys.ttsModel] = value }
 
     suspend fun setChatApi(value: String) = update { it[Keys.chatApi] = value }
+
+    suspend fun setChatBaseUrl(value: String) = update { it[Keys.chatBaseUrl] = value }
+
+    suspend fun setChatApiKey(value: String) = update { it[Keys.chatApiKey] = value }
+
+    suspend fun setChatAuthHeader(value: String) = update { it[Keys.chatAuthHeader] = value }
+
+    suspend fun setTranscribeBaseUrl(value: String) = update { it[Keys.transcribeBaseUrl] = value }
+
+    suspend fun setTranscribeApiKey(value: String) = update { it[Keys.transcribeApiKey] = value }
+
+    suspend fun setTranscribeAuthHeader(value: String) = update { it[Keys.transcribeAuthHeader] = value }
+
+    suspend fun setTtsBaseUrl(value: String) = update { it[Keys.ttsBaseUrl] = value }
+
+    suspend fun setTtsApiKey(value: String) = update { it[Keys.ttsApiKey] = value }
+
+    suspend fun setTtsAuthHeader(value: String) = update { it[Keys.ttsAuthHeader] = value }
 
     suspend fun setVoice(value: String) = update { it[Keys.voice] = value }
 

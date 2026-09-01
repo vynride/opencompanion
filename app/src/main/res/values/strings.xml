@@ -36,6 +36,11 @@
     <string name="settings_tts_model">TTS model</string>
     <string name="settings_chat_api">API style</string>
 
+    <string name="settings_group_api_overrides">API overrides</string>
+    <string name="settings_override_chat">Chat</string>
+    <string name="settings_override_transcribe">Transcribe</string>
+    <string name="settings_override_tts">Speech</string>
+
     <string name="settings_group_voice">Voice</string>
     <string name="settings_voice">Voice</string>
     <string name="settings_speed">Speed</string>
