@@ -29,3 +29,6 @@ __pycache__/
 # local notes and agent scratch
 .notes/
 .superpowers/
+
+# keyword models are CC BY-NC-SA licensed and must stay out of the repo
+models/wakeword/*.onnx

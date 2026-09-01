@@ -30,12 +30,13 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -48,13 +49,18 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.github.vynride.opencompanion.R
 import io.github.vynride.opencompanion.service.CompanionService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
 fun SettingsScreen(repo: SettingsRepository) {
     val settings by repo.flow.collectAsState(initial = Settings())
-    val scope = rememberCoroutineScope()
+    // Writes must outlive the composition: fields flush unsaved edits on dispose, and the
+    // composition scope is cancelled in that same pass, dropping anything launched into it.
+    val scope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
     val context = LocalContext.current
 
     Column(
@@ -293,6 +299,10 @@ private fun LabeledField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     var text by remember(value) { mutableStateOf(value) }
+    // Leaving the screen removes the field without a focus change, so persist any
+    // unsaved edit on dispose; clean state is left alone.
+    val flush by rememberUpdatedState { if (text != value) onChange(text) }
+    DisposableEffect(Unit) { onDispose { flush() } }
     OutlinedTextField(
         value = text,
         onValueChange = { text = it },

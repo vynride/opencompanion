@@ -30,9 +30,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import java.io.File
 import java.time.ZoneId
@@ -137,7 +138,10 @@ class CompanionService : Service() {
     }
 
     override fun onDestroy() {
-        scope.cancel()
+        // Cancellation only lands at a suspension point, so an in-flight build can still
+        // assign and start a companion after cancel() returns; wait for every job in the
+        // scope (the current build and any superseded one) before stopping what survived.
+        runBlocking { scope.coroutineContext.job.cancelAndJoin() }
         companion?.stop()
         companion = null
         super.onDestroy()
