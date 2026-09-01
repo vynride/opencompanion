@@ -68,6 +68,108 @@ class ChatClientTest {
     }
 
     @Test
+    fun `chat api streams deltas and assembles the final message`() = runTest {
+        MockWebServer().use { server ->
+            val sse =
+                """
+                data: {"choices":[{"delta":{"role":"assistant"}}]}
+
+                data: {"choices":[{"delta":{"content":"Hel"}}]}
+
+                data: {"choices":[{"delta":{"content":"lo."}}]}
+
+                data: [DONE]
+                """.trimIndent()
+            server.enqueue(MockResponse(body = sse))
+            server.start()
+            val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "", Log.Stdout)
+            val deltas = mutableListOf<String>()
+            val msg = client.chat(listOf(userMessage("q")), onDelta = deltas::add)
+            assertEquals(listOf("Hel", "lo."), deltas)
+            assertEquals("Hello.", msg["content"]!!.jsonPrimitive.content)
+            val body = json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("true", body["stream"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `chat api assembles streamed tool call fragments by index`() = runTest {
+        MockWebServer().use { server ->
+            val sse =
+                """
+                data: {"choices":[{"delta":{"content":"On it."}}]}
+
+                data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"get_time","arguments":""}}]}}]}
+
+                data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"zo"}}]}}]}
+
+                data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ne\":\"UTC\"}"}}]}}]}
+
+                data: [DONE]
+                """.trimIndent()
+            server.enqueue(MockResponse(body = sse))
+            server.start()
+            val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "", Log.Stdout)
+            val msg = client.chat(listOf(userMessage("q")), onDelta = {})
+            assertEquals("On it.", msg["content"]!!.jsonPrimitive.content)
+            val call = msg["tool_calls"]!!.jsonArray.single().jsonObject
+            assertEquals("c1", call["id"]!!.jsonPrimitive.content)
+            val fn = call["function"]!!.jsonObject
+            assertEquals("get_time", fn["name"]!!.jsonPrimitive.content)
+            assertEquals("""{"zone":"UTC"}""", fn["arguments"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `responses api streams deltas and takes the final object from the completed event`() = runTest {
+        MockWebServer().use { server ->
+            val sse =
+                """
+                data: {"type":"response.created"}
+
+                data: {"type":"response.output_text.delta","delta":"Hi "}
+
+                data: {"type":"response.output_text.delta","delta":"there."}
+
+                data: {"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","text":"Hi there."}]},{"type":"function_call","call_id":"c9","name":"t","arguments":"{}"}]}}
+                """.trimIndent()
+            server.enqueue(MockResponse(body = sse))
+            server.start()
+            val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.RESPONSES, "", Log.Stdout)
+            val deltas = mutableListOf<String>()
+            val msg = client.chat(listOf(userMessage("q")), onDelta = deltas::add)
+            assertEquals(listOf("Hi ", "there."), deltas)
+            assertEquals("Hi there.", msg["content"]!!.jsonPrimitive.content)
+            assertEquals(
+                "c9",
+                msg["tool_calls"]!!
+                    .jsonArray
+                    .single()
+                    .jsonObject["id"]!!
+                    .jsonPrimitive.content,
+            )
+            val body = json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals("true", body["stream"]!!.jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `an unparseable stream falls back to one non-streaming request`() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(body = "data: {not json at all"))
+            server.enqueue(MockResponse(body = """{"choices":[{"message":{"role":"assistant","content":"ok"}}]}"""))
+            server.start()
+            val client = ChatClient(OkHttpClient(), Service(server.url("/v1").toString(), "k", "m"), ChatApi.CHAT, "", Log.Stdout)
+            val msg = client.chat(listOf(userMessage("q")), onDelta = {})
+            assertEquals("ok", msg["content"]!!.jsonPrimitive.content)
+            assertEquals(2, server.requestCount)
+            server.takeRequest()
+            val second = json.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+            assertEquals(null, second["stream"])
+        }
+    }
+
+    @Test
     fun `retries a 503 then succeeds`() = runTest {
         MockWebServer().use { server ->
             server.enqueue(MockResponse(code = 503))

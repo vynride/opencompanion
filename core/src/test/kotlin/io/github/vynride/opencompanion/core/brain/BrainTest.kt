@@ -78,9 +78,12 @@ private class ScriptedChat(
     override suspend fun chat(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
+        onDelta: ((String) -> Unit)?,
     ): JsonObject {
         seen += messages.toList() to tools
-        return queue.removeFirstOrNull() ?: error("scripted chat ran out of responses")
+        val msg = queue.removeFirstOrNull() ?: error("scripted chat ran out of responses")
+        (msg["content"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content?.let { onDelta?.invoke(it) }
+        return msg
     }
 }
 
@@ -92,6 +95,7 @@ private class FailingChat(
     override suspend fun chat(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
+        onDelta: ((String) -> Unit)?,
     ): JsonObject = throw error()
 }
 
@@ -389,6 +393,7 @@ class BrainTest {
                 override suspend fun chat(
                     messages: List<JsonObject>,
                     tools: List<JsonObject>?,
+                    onDelta: ((String) -> Unit)?,
                 ): JsonObject {
                     calls++
                     check(calls != 1) { "bad turn" }

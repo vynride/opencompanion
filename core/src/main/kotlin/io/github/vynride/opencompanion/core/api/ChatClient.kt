@@ -5,9 +5,14 @@ package io.github.vynride.opencompanion.core.api
 import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.config.ChatApi
 import io.github.vynride.opencompanion.core.config.Service
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
@@ -17,6 +22,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSource
 import java.util.Base64
 
 fun systemMessage(text: String): JsonObject = buildJsonObject {
@@ -71,9 +77,11 @@ fun imageMessage(
 interface Chat {
     val model: String
 
+    /** With [onDelta] set the reply is streamed and each text fragment is passed on as it arrives. */
     suspend fun chat(
         messages: List<JsonObject>,
         tools: List<JsonObject>? = null,
+        onDelta: ((String) -> Unit)? = null,
     ): JsonObject
 }
 
@@ -90,6 +98,7 @@ class ChatClient(
     private fun request(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
+        stream: Boolean,
     ): Pair<String, JsonObject> = if (api == ChatApi.RESPONSES) {
         val (instructions, items) = toResponses(messages)
         service.url("responses") to
@@ -102,6 +111,7 @@ class ChatClient(
                     put("tool_choice", "auto")
                 }
                 if (reasoningEffort.isNotEmpty()) putJsonObject("reasoning") { put("effort", reasoningEffort) }
+                if (stream) put("stream", true)
             }
     } else {
         service.url("chat/completions") to
@@ -113,6 +123,7 @@ class ChatClient(
                     put("tool_choice", "auto")
                 }
                 if (reasoningEffort.isNotEmpty()) put("reasoning_effort", reasoningEffort)
+                if (stream) put("stream", true)
             }
     }
 
@@ -121,7 +132,7 @@ class ChatClient(
         val msg = (data["choices"] as JsonArray)[0].jsonObject["message"]!!.jsonObject
         return buildJsonObject {
             put("role", "assistant")
-            put("content", msg["content"] ?: kotlinx.serialization.json.JsonNull)
+            put("content", msg["content"] ?: JsonNull)
             msg["tool_calls"]?.let { put("tool_calls", it) }
         }
     }
@@ -129,8 +140,56 @@ class ChatClient(
     override suspend fun chat(
         messages: List<JsonObject>,
         tools: List<JsonObject>?,
+        onDelta: ((String) -> Unit)?,
     ): JsonObject {
-        val (url, body) = request(messages, tools)
+        val startNs = System.nanoTime()
+        if (onDelta != null) {
+            try {
+                return streamed(messages, tools, onDelta, startNs)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log.warn("chat", "stream failed; falling back to a full completion", e)
+            }
+        }
+        val (url, body) = request(messages, tools, stream = false)
+        return send(url, body).use { r ->
+            parse(json.parseToJsonElement(r.body.string()).jsonObject)
+        }.also { log.debug("chat", "completion in ${sinceMs(startNs)}ms") }
+    }
+
+    private suspend fun streamed(
+        messages: List<JsonObject>,
+        tools: List<JsonObject>?,
+        onDelta: (String) -> Unit,
+        startNs: Long,
+    ): JsonObject {
+        val (url, body) = request(messages, tools, stream = true)
+        val response = send(url, body)
+        // SSE reads block the calling thread until the next event lands.
+        return withContext(Dispatchers.IO) {
+            response.use { r ->
+                var first = true
+                val timed: (String) -> Unit = {
+                    if (first) {
+                        first = false
+                        log.debug("chat", "first delta in ${sinceMs(startNs)}ms")
+                    }
+                    onDelta(it)
+                }
+                val source = r.body.source()
+                val msg = if (api == ChatApi.RESPONSES) readResponsesSse(source, timed) else readChatSse(source, timed)
+                log.debug("chat", "stream done in ${sinceMs(startNs)}ms")
+                msg
+            }
+        }
+    }
+
+    /** Post `body`, retrying per policy; returns the first successful response. */
+    private suspend fun send(
+        url: String,
+        body: JsonObject,
+    ): okhttp3.Response {
         for (attempt in 1..RetryPolicy.ATTEMPTS) {
             val req =
                 Request
@@ -155,10 +214,98 @@ class ChatClient(
                 delay(RetryPolicy.delay(retryAfter, attempt))
                 continue
             }
-            response.requireSuccess().use { r ->
-                return parse(json.parseToJsonElement(r.body.string()).jsonObject)
-            }
+            return response.requireSuccess()
         }
         error("unreachable")
     }
+
+    /** Responses SSE: forward text deltas, then parse the full object from `response.completed`. */
+    private fun readResponsesSse(
+        source: BufferedSource,
+        onDelta: (String) -> Unit,
+    ): JsonObject {
+        var completed: JsonObject? = null
+        while (true) {
+            val data = source.nextSseData() ?: break
+            val obj = json.parseToJsonElement(data).jsonObject
+            when (obj.str("type")) {
+                "response.output_text.delta" -> obj.str("delta")?.takeIf { it.isNotEmpty() }?.let(onDelta)
+                "response.completed" -> completed = obj["response"]?.jsonObject
+            }
+        }
+        return parseResponses(completed ?: error("stream ended without a completed response"))
+    }
+
+    /** Chat-completions SSE: accumulate delta fragments into one assistant message. */
+    private fun readChatSse(
+        source: BufferedSource,
+        onDelta: (String) -> Unit,
+    ): JsonObject {
+        val content = StringBuilder()
+        val calls = sortedMapOf<Int, ToolCallParts>()
+        while (true) {
+            val data = source.nextSseData() ?: break
+            val obj = json.parseToJsonElement(data).jsonObject
+            val delta =
+                (obj["choices"] as? JsonArray)
+                    ?.firstOrNull()
+                    ?.jsonObject
+                    ?.get("delta")
+                    ?.jsonObject ?: continue
+            delta.str("content")?.takeIf { it.isNotEmpty() }?.let {
+                content.append(it)
+                onDelta(it)
+            }
+            (delta["tool_calls"] as? JsonArray)?.forEach { frag ->
+                val f = frag.jsonObject
+                val index = (f["index"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+                val parts = calls.getOrPut(index) { ToolCallParts() }
+                f.str("id")?.let { parts.id = it }
+                val fn = f["function"]?.jsonObject
+                fn?.str("name")?.let { parts.name.append(it) }
+                fn?.str("arguments")?.let { parts.arguments.append(it) }
+            }
+        }
+        return buildJsonObject {
+            put("role", "assistant")
+            if (content.isEmpty()) put("content", JsonNull) else put("content", content.toString())
+            if (calls.isNotEmpty()) {
+                putJsonArray("tool_calls") {
+                    calls.values.forEach { parts ->
+                        add(
+                            buildJsonObject {
+                                put("id", parts.id)
+                                put("type", "function")
+                                putJsonObject("function") {
+                                    put("name", parts.name.toString())
+                                    put("arguments", parts.arguments.toString())
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private class ToolCallParts {
+        var id = ""
+        val name = StringBuilder()
+        val arguments = StringBuilder()
+    }
 }
+
+private fun JsonObject.str(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+/** The payload of the next `data:` line, or null at end of stream or a terminal `[DONE]`. */
+private fun BufferedSource.nextSseData(): String? {
+    while (true) {
+        val line = readUtf8Line() ?: return null
+        if (!line.startsWith("data:")) continue
+        val data = line.removePrefix("data:").trim()
+        if (data == "[DONE]") return null
+        if (data.isNotEmpty()) return data
+    }
+}
+
+private fun sinceMs(startNs: Long): Long = (System.nanoTime() - startNs) / 1_000_000
