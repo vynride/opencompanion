@@ -4,6 +4,20 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+// Keyword models are CC BY-NC-SA and must never ship; package the models
+// directory through a filtered copy instead of wiring it in directly.
+val modelAssetsDir: java.io.File =
+    layout.buildDirectory
+        .dir("generated/modelAssets")
+        .get()
+        .asFile
+val copyModelAssets =
+    tasks.register<Sync>("copyModelAssets") {
+        from(rootProject.file("models"))
+        exclude("wakeword/*.onnx")
+        into(modelAssetsDir)
+    }
+
 android {
     namespace = "io.github.vynride.opencompanion"
     compileSdk = 36
@@ -29,7 +43,7 @@ android {
     }
 
     sourceSets.getByName("main") {
-        assets.srcDir(rootProject.file("models"))
+        assets.srcDir(modelAssetsDir)
     }
 
     compileOptions {
@@ -70,4 +84,9 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Every variant task hangs off preBuild, so the filtered assets exist before merging.
+tasks.named("preBuild") {
+    dependsOn(copyModelAssets)
 }
