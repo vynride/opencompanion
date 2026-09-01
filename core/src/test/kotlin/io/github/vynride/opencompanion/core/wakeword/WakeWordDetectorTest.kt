@@ -120,7 +120,8 @@ class WakeWordDetectorTest {
         assertEquals(0, p.seen.size)
         h.detector.process(frame(9))
         assertEquals(listOf(1, 2, 3, 9), p.seen.map { it[0].toInt() })
-        assertEquals(1, p.resets)
+        // resuming keeps the predictor's context; a reset would demand a long warmup
+        assertEquals(0, p.resets)
     }
 
     @Test

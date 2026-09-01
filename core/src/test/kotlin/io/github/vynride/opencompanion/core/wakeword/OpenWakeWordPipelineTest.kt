@@ -2,11 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.wakeword
 
+import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.RepoModelStore
+import io.github.vynride.opencompanion.core.audio.FRAME_MS
 import io.github.vynride.opencompanion.core.audio.FRAME_SAMPLES
 import io.github.vynride.opencompanion.core.audio.FrameBuffer
 import io.github.vynride.opencompanion.core.audio.Resampler
 import io.github.vynride.opencompanion.core.audio.parseWav
+import io.github.vynride.opencompanion.core.bus.EventBus
+import io.github.vynride.opencompanion.core.config.WakeWordConfig
+import io.github.vynride.opencompanion.core.vad.Vad
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.nio.file.Files
 import java.nio.file.Path
@@ -15,6 +21,8 @@ import kotlin.io.path.name
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 class OpenWakeWordPipelineTest {
     private val store = RepoModelStore()
@@ -61,6 +69,44 @@ class OpenWakeWordPipelineTest {
             p.reset()
             val quiet = (1..40).maxOf { p.score(ShortArray(FRAME_SAMPLES)) }
             assertTrue(quiet < 0.2f, "silence score $quiet")
+        }
+    }
+
+    // Regression: a gate that flaps mid-speech must not stop detection. Parked frames
+    // come back through the pre-roll, and the detector keeps the predictor's context
+    // across the gaps instead of resetting into warmup.
+    @Test
+    fun `the fixture still triggers through a flapping gate`() = runTest {
+        val kw = keywordFile()
+        val wav = javaClass.getResource("/wakeword-16k.wav")
+        assumeTrue(kw != null && wav != null && store.has("melspectrogram.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            val data = parseWav(wav!!.readBytes())
+            val frames = FrameBuffer(FRAME_SAMPLES).push(Resampler(data.rateHz, 16000).process(data.samples))
+            // shut for three frames out of every ten; the pre-roll spans the gap
+            var index = 0
+            val gate =
+                object : Vad {
+                    override fun isSpeech(frame: ShortArray): Boolean = index % 10 < 7
+                }
+            var now = Duration.ZERO
+            val detector =
+                WakeWordDetector(
+                    EventBus(),
+                    p,
+                    WakeWordConfig(threshold = 0.5f, gateHoldS = 0.0, prerollMs = 240),
+                    { true },
+                    gate,
+                    Log.Stdout,
+                    backgroundScope,
+                ) { now }
+            var peak = 0f
+            for (frame in frames) {
+                peak = maxOf(peak, detector.process(frame))
+                index++
+                now += FRAME_MS.milliseconds
+            }
+            assertTrue(peak >= 0.5f, "peak score $peak")
         }
     }
 }

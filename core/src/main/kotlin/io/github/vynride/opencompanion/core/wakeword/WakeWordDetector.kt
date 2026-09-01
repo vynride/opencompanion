@@ -122,14 +122,17 @@ class WakeWordDetector(
             if (active) {
                 listOf(frame)
             } else {
-                // Resuming after a gap: replay the pre-roll so the model has context.
+                // Resuming after a gap: replay the pre-roll for the speech onset, and
+                // deliberately keep the predictor's stale context instead of resetting.
+                // A reset needs a couple of seconds of scored frames before the
+                // classifier runs at all, and a flapping gate never leaves that long,
+                // zeroing every score; stale context only degrades scores slightly.
                 active = true
                 (preroll + frame).also { preroll.clear() }
             }
         val score =
             try {
                 withContext(Dispatchers.Default) {
-                    if (burst.size > 1) predictor.reset()
                     burst.maxOf { predictor.score(it) }
                 }
             } catch (e: Exception) {
