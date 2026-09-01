@@ -56,6 +56,12 @@
     <string name="settings_lon">Longitude</string>
     <string name="settings_timezone">Timezone</string>
     <string name="settings_manual_header">Manual</string>
+    <string name="settings_city_search">City search</string>
+    <string name="settings_search">Search</string>
+    <string name="settings_no_matches">No matches</string>
+    <string name="settings_detect_network">Detect from network</string>
+    <string name="settings_use_device_timezone">Use device timezone (%1$s)</string>
+    <string name="settings_location_failed">Could not reach the location service</string>
 
     <string name="settings_shared_endpoint">Shared endpoint</string>
     <string name="settings_base_url">Base URL</string>
