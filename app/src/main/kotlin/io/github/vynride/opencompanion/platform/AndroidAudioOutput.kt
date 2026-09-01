@@ -29,10 +29,12 @@ class AndroidAudioOutput(
 ) : AudioOutput {
     private val audioManager: AudioManager? = context.getSystemService(AudioManager::class.java)
 
+    // Media usage, not assistant: the assistant stream is unreliable on older vendor
+    // HALs, and media puts the companion's voice on the volume rocker like any player.
     private val attributes =
         AudioAttributes
             .Builder()
-            .setUsage(AudioAttributes.USAGE_ASSISTANT)
+            .setUsage(AudioAttributes.USAGE_MEDIA)
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build()
 
