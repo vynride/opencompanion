@@ -5,6 +5,7 @@ package io.github.vynride.opencompanion.settings
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -252,6 +253,8 @@ private fun restartCompanion(context: Context) {
             PackageManager.PERMISSION_GRANTED
     if (hasMic) {
         ContextCompat.startForegroundService(context, CompanionService.restartIntent(context))
+        // The restart is silent otherwise, which reads as a dead button.
+        Toast.makeText(context, R.string.settings_restarting_companion, Toast.LENGTH_SHORT).show()
     }
 }
 
