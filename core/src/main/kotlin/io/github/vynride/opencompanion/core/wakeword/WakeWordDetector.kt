@@ -49,6 +49,14 @@ class WakeWordDetector(
         private set
     private var jobs: List<Job> = emptyList()
 
+    // Telemetry window; mutated only by the single process() consumer.
+    private var lastTelemetry = clock()
+    private var seenFrames = 0
+    private var unarmedFrames = 0
+    private var gatedFrames = 0
+    private var scoredFrames = 0
+    private var maxScore = 0f
+
     fun start(frames: SharedFlow<ShortArray>) {
         jobs =
             listOf(
@@ -77,14 +85,39 @@ class WakeWordDetector(
         return 0f
     }
 
+    // The detector is otherwise silent below the trigger, so summarize each window at
+    // DEBUG; the line covers the frames handled since the previous one.
+    private fun telemetry(now: Duration) {
+        if (now - lastTelemetry < 5.seconds) return
+        log.debug(
+            "wakeword",
+            "frames=$seenFrames unarmed=$unarmedFrames gated=$gatedFrames scored=$scoredFrames max=${"%.2f".format(maxScore)}",
+        )
+        lastTelemetry = now
+        seenFrames = 0
+        unarmedFrames = 0
+        gatedFrames = 0
+        scoredFrames = 0
+        maxScore = 0f
+    }
+
     suspend fun process(frame: ShortArray): Float {
-        if (!armed()) return park(frame)
         val now = clock()
+        telemetry(now)
+        seenFrames++
+        if (!armed()) {
+            unarmedFrames++
+            return park(frame)
+        }
         val speech = gate?.let { withContext(Dispatchers.Default) { it.isSpeech(frame) } }
         if (speech != null) {
             if (speech) lastSpeech = now
-            if (now - lastSpeech > config.gateHoldS.seconds) return park(frame)
+            if (now - lastSpeech > config.gateHoldS.seconds) {
+                gatedFrames++
+                return park(frame)
+            }
         }
+        scoredFrames++
         val burst =
             if (active) {
                 listOf(frame)
@@ -104,6 +137,7 @@ class WakeWordDetector(
                 if (failures == 1 || failures % 100 == 0) log.error("wakeword", "predict failed ($failures total)", e)
                 return 0f
             }
+        if (score > maxScore) maxScore = score
         if (score >= config.threshold && now - lastWake >= config.refractoryS.seconds) {
             lastWake = now
             log.info("wakeword", "wake word (score ${"%.2f".format(score)})")

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 package io.github.vynride.opencompanion.core.wakeword
 
+import io.github.vynride.opencompanion.core.Level
 import io.github.vynride.opencompanion.core.Log
 import io.github.vynride.opencompanion.core.audio.FRAME_SAMPLES
 import io.github.vynride.opencompanion.core.bus.EventBus
@@ -49,17 +50,31 @@ class WakeWordDetectorTest {
 
     private fun frame(tag: Int) = ShortArray(FRAME_SAMPLES) { tag.toShort() }
 
+    private class RecordingLog : Log {
+        val debugLines = mutableListOf<String>()
+
+        override fun log(
+            level: Level,
+            tag: String,
+            message: String,
+            error: Throwable?,
+        ) {
+            if (level == Level.DEBUG && tag == "wakeword") debugLines += message
+        }
+    }
+
     private class Harness(
         scope: kotlinx.coroutines.CoroutineScope,
         predictor: WakePredictor,
         vad: Vad? = null,
         armed: () -> Boolean = { true },
         config: WakeWordConfig = WakeWordConfig(threshold = 0.5f, refractoryS = 1.0, gateHoldS = 1.5, prerollMs = 240),
+        log: Log = Log.Stdout,
     ) {
         val bus = EventBus()
         var now: Duration = Duration.ZERO
         val wakes = mutableListOf<Wake>()
-        val detector = WakeWordDetector(bus, predictor, config, armed, vad, Log.Stdout, scope) { now }
+        val detector = WakeWordDetector(bus, predictor, config, armed, vad, log, scope) { now }
 
         init {
             bus.on<Wake>().onEach { wakes += it }.launchIn(scope)
@@ -132,6 +147,28 @@ class WakeWordDetectorTest {
         val h = Harness(backgroundScope, failing)
         assertEquals(0f, h.detector.process(frame(1)))
         assertEquals(0, h.wakes.size)
+    }
+
+    @Test
+    fun `emits a telemetry summary splitting the park reasons`() = runTest {
+        val log = RecordingLog()
+        var armed = true
+        val p = ScriptedPredictor(ArrayDeque(listOf(0.2f, 0.4f)))
+        val vad = ScriptedVad(ArrayDeque(listOf(true, true, false)))
+        val h = Harness(backgroundScope, p, vad, armed = { armed }, log = log)
+        // two scored frames, one parked by the gate, one parked unarmed
+        h.detector.process(frame(1))
+        h.detector.process(frame(2))
+        h.now = 2.seconds
+        h.detector.process(frame(3))
+        armed = false
+        h.detector.process(frame(4))
+        assertEquals(emptyList(), log.debugLines)
+        // the next frame past the window emits the summary before being counted itself
+        armed = true
+        h.now = 6.seconds
+        h.detector.process(frame(5))
+        assertEquals(listOf("frames=4 unarmed=1 gated=1 scored=2 max=${"%.2f".format(0.4f)}"), log.debugLines)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
