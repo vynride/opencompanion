@@ -62,7 +62,7 @@ class CompanionService : Service() {
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_STOP) {
-            stopSelf()
+            shutdown()
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RESTART) {
@@ -93,6 +93,22 @@ class CompanionService : Service() {
                 companion = built
                 built.start()
             }
+    }
+
+    // stopSelf() alone leaves a bound service running, and the face activity keeps the
+    // service bound whenever it is open; tear the companion down explicitly so the stop
+    // action works either way, and drop the notification with it. onDestroy still covers
+    // a teardown cancelled mid-flight: the companion is nulled only after it stopped.
+    private fun shutdown() {
+        val previous = buildJob
+        buildJob =
+            scope.launch {
+                previous?.cancelAndJoin()
+                companion?.stop()
+                companion = null
+            }
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     private fun startForegroundWithTypes() {
