@@ -32,3 +32,6 @@ __pycache__/
 
 # keyword models are CC BY-NC-SA licensed and must stay out of the repo
 models/wakeword/*.onnx
+
+# audio fixtures are personal voice recordings and stay local
+core/src/test/resources/*.wav
