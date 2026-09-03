@@ -152,11 +152,16 @@ class Companion(
         stopFns += ports.audioInput::stop
 
         // Waking opens the model connections in parallel with listening, so the turn
-        // that follows starts on warm TLS.
+        // that follows starts on warm TLS. Transcribe goes first: it is the first
+        // request of every turn and the slowest to open cold.
         val prewarmer =
             ConnectionPrewarmer(
                 http,
-                listOfNotNull(config.service(ServiceKind.CHAT), config.service(ServiceKind.TTS)),
+                listOfNotNull(
+                    config.service(ServiceKind.TRANSCRIBE),
+                    config.service(ServiceKind.CHAT),
+                    config.service(ServiceKind.TTS),
+                ),
                 log,
                 scope,
             )

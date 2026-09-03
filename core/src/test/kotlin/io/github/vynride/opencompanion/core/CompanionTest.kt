@@ -25,9 +25,11 @@ import okhttp3.OkHttpClient
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -149,6 +151,25 @@ class CompanionTest {
             c.bus.publish(Transcript("hi"))
             assertEquals("hello there", reply.await().text)
             assertTrue("hello there" in c.memory.journalToday())
+            c.stop()
+        }
+    }
+
+    @Test
+    fun `waking prewarms the transcribe endpoint`() = runTest(UnconfinedTestDispatcher()) {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse(code = 401))
+            server.start()
+            val config =
+                CompanionConfig(
+                    api = ApiConfig(baseUrl = server.url("/v1").toString(), apiKey = "k", transcribeModel = "m"),
+                )
+            val c = Companion(config, ports(), OkHttpClient(), dir, Log.Stdout, backgroundScope)
+            c.start()
+            c.bus.publish(Wake)
+            val request = assertNotNull(server.takeRequest(2, TimeUnit.SECONDS))
+            assertEquals("HEAD", request.method)
+            assertEquals("/v1/models", request.url.encodedPath)
             c.stop()
         }
     }
