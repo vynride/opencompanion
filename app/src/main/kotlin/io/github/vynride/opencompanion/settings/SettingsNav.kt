@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.PlayArrow
@@ -49,6 +50,7 @@ internal object SettingsRoutes {
     const val WAKE_WORD = "wake_word"
     const val INTEGRATIONS = "integrations"
     const val DEVICE = "device"
+    const val QUIET_HOURS = "quiet_hours"
     const val PERSONALITY = "personality"
 }
 
@@ -67,6 +69,7 @@ fun SettingsNav(repo: SettingsRepository) {
         composable(SettingsRoutes.WAKE_WORD) { WakeWordPage(repo, onBack = back) }
         composable(SettingsRoutes.INTEGRATIONS) { IntegrationsPage(repo, onBack = back) }
         composable(SettingsRoutes.DEVICE) { DevicePage(repo, onBack = back) }
+        composable(SettingsRoutes.QUIET_HOURS) { QuietHoursPage(repo, onBack = back) }
         composable(SettingsRoutes.PERSONALITY) { PersonalityPage(onBack = back) }
     }
 }
@@ -124,6 +127,16 @@ private fun SettingsHomePage(
                 title = stringResource(R.string.settings_page_device),
                 summary = stringResource(R.string.settings_summary_device),
             ) { onOpen(SettingsRoutes.DEVICE) }
+            SectionRow(
+                icon = Icons.Default.Lock,
+                title = stringResource(R.string.settings_page_quiet_hours),
+                summary =
+                if (settings.quietHoursEnabled) {
+                    "${clockLabel(settings.quietStartMin)} - ${clockLabel(settings.quietEndMin)}"
+                } else {
+                    stringResource(R.string.settings_quiet_hours_off)
+                },
+            ) { onOpen(SettingsRoutes.QUIET_HOURS) }
 
             Button(
                 onClick = { restartCompanion(context) },

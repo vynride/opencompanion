@@ -34,8 +34,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import io.github.vynride.opencompanion.appGraph
 import io.github.vynride.opencompanion.core.bus.StateChanged
+import io.github.vynride.opencompanion.core.state.State
 import io.github.vynride.opencompanion.permissions.PermissionGate
 import io.github.vynride.opencompanion.service.CompanionService
+import io.github.vynride.opencompanion.service.QuietHoursScheduler
 import io.github.vynride.opencompanion.settings.ScreenRelay
 import io.github.vynride.opencompanion.settings.SettingsActivity
 import kotlinx.coroutines.Job
@@ -57,12 +59,17 @@ class FaceActivity : ComponentActivity() {
             ) {
                 val binder = service as? CompanionService.LocalBinder ?: return
                 // A rebuild swaps the companion instance; collectLatest drops the dead
-                // instance's bus collection and rewires onto the new one.
+                // instance's bus collection and rewires onto the new one. No instance
+                // (quiet hours, or a rebuild in flight) reads as a sleeping face.
                 eventsJob =
                     lifecycleScope.launch {
                         repeatOnLifecycle(Lifecycle.State.STARTED) {
                             binder.companion.collectLatest { companion ->
-                                if (companion != null) wireCompanion(companion)
+                                if (companion != null) {
+                                    wireCompanion(companion)
+                                } else {
+                                    FaceMessages.forEvent(StateChanged(State.SLEEPING))?.let(faceWebView::push)
+                                }
                             }
                         }
                     }
@@ -106,9 +113,14 @@ class FaceActivity : ComponentActivity() {
         }
     }
 
+    // During quiet hours the face only binds, so the companion is not built and the
+    // mic stays off; the alarm at the end of the window starts it while the face is
+    // on screen.
     private fun startAndBindCompanion() {
         if (bound) return
-        CompanionService.start(this)
+        if (!runBlocking { QuietHoursScheduler.isQuietNow(appGraph.settings.current()) }) {
+            CompanionService.start(this)
+        }
         CompanionService.bind(this, connection)
         bound = true
     }

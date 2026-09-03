@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.vynride.opencompanion.core.config.CompanionConfig
@@ -53,6 +54,9 @@ private object Keys {
     val laptopHost = stringPreferencesKey("laptop_host")
     val cameraEnabled = booleanPreferencesKey("camera_enabled")
     val kioskPinned = booleanPreferencesKey("kiosk_pinned")
+    val quietHoursEnabled = booleanPreferencesKey("quiet_hours_enabled")
+    val quietStartMin = intPreferencesKey("quiet_start_min")
+    val quietEndMin = intPreferencesKey("quiet_end_min")
     val cameraStepDone = booleanPreferencesKey("camera_step_done")
 }
 
@@ -93,6 +97,9 @@ class SettingsRepository(
                 laptopHost = prefs[Keys.laptopHost] ?: "",
                 cameraEnabled = prefs[Keys.cameraEnabled] ?: true,
                 kioskPinned = prefs[Keys.kioskPinned] ?: false,
+                quietHoursEnabled = prefs[Keys.quietHoursEnabled] ?: false,
+                quietStartMin = prefs[Keys.quietStartMin] ?: 22 * 60,
+                quietEndMin = prefs[Keys.quietEndMin] ?: 7 * 60,
                 cameraStepDone = prefs[Keys.cameraStepDone] ?: false,
             )
         }
@@ -162,6 +169,12 @@ class SettingsRepository(
     suspend fun setCameraEnabled(value: Boolean) = update { it[Keys.cameraEnabled] = value }
 
     suspend fun setKioskPinned(value: Boolean) = update { it[Keys.kioskPinned] = value }
+
+    suspend fun setQuietHoursEnabled(value: Boolean) = update { it[Keys.quietHoursEnabled] = value }
+
+    suspend fun setQuietStartMin(value: Int) = update { it[Keys.quietStartMin] = value }
+
+    suspend fun setQuietEndMin(value: Int) = update { it[Keys.quietEndMin] = value }
 
     suspend fun setCameraStepDone(value: Boolean) = update { it[Keys.cameraStepDone] = value }
 

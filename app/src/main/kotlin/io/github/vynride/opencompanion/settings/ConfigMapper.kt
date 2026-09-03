@@ -47,8 +47,15 @@ data class Settings(
     val laptopHost: String = "",
     val cameraEnabled: Boolean = true,
     val kioskPinned: Boolean = false,
+    val quietHoursEnabled: Boolean = false,
+    // Minutes of day; the default window is evening off, morning on.
+    val quietStartMin: Int = 22 * 60,
+    val quietEndMin: Int = 7 * 60,
     val cameraStepDone: Boolean = false,
-)
+) {
+    /** The configured window, or null when quiet hours are off. */
+    fun quietHours(): QuietHours? = if (quietHoursEnabled) QuietHours.fromMinutes(quietStartMin, quietEndMin) else null
+}
 
 /** Pure mapping from stored [Settings] to the runtime [CompanionConfig], no Android types. */
 object ConfigMapper {
