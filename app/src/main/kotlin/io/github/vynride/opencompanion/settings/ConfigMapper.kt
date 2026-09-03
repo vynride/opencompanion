@@ -25,6 +25,8 @@ data class Settings(
     val authHeader: String = "",
     val chatModel: String = "",
     val transcribeModel: String = "",
+    // ISO 639-1 code passed to the transcribe service; blank means the core default.
+    val sttLanguage: String = "",
     val ttsModel: String = "",
     val chatApi: String = "",
     // Per-service endpoint overrides; blank means inherit the shared API settings.
@@ -73,6 +75,7 @@ object ConfigMapper {
                 transcribe = override(s.transcribeBaseUrl, s.transcribeApiKey, s.transcribeAuthHeader),
                 tts = override(s.ttsBaseUrl, s.ttsApiKey, s.ttsAuthHeader),
             ),
+            stt = defaults.stt.copy(language = s.sttLanguage.trim().lowercase().ifBlank { defaults.stt.language }),
             wakeWord =
             defaults.wakeWord.copy(
                 modelFile = s.wakeModelFile.ifBlank { defaults.wakeWord.modelFile },

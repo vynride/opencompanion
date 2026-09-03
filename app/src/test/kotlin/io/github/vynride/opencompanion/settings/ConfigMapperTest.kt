@@ -27,6 +27,7 @@ class ConfigMapperTest {
         assertEquals(defaults.search.exaApiKey, config.search.exaApiKey)
         assertEquals(defaults.hosts, config.hosts)
         assertEquals(defaults.cameraEnabled, config.cameraEnabled)
+        assertEquals(defaults.stt, config.stt)
     }
 
     @Test
@@ -43,6 +44,7 @@ class ConfigMapperTest {
                 authHeader = "api-key",
                 chatModel = "gpt-chat",
                 transcribeModel = "gpt-transcribe",
+                sttLanguage = "ja",
                 ttsModel = "gpt-tts",
                 chatApi = "responses",
                 voice = "alloy",
@@ -64,6 +66,7 @@ class ConfigMapperTest {
         assertEquals("Asia/Kolkata", config.location.timezone)
         assertEquals("gpt-chat", config.api.chatModel)
         assertEquals("gpt-transcribe", config.api.transcribeModel)
+        assertEquals("ja", config.stt.language)
         assertEquals("gpt-tts", config.api.ttsModel)
         assertEquals(AuthHeader.API_KEY, config.api.authHeader)
         assertEquals(ChatApi.RESPONSES, config.brain.api)
@@ -152,6 +155,12 @@ class ConfigMapperTest {
 
         val url = config.service(ServiceKind.TRANSCRIBE)!!.url("audio/transcriptions")
         assertEquals("https://res.test/openai/deployments/stt/audio/transcriptions?api-version=2024-06-01", url)
+    }
+
+    @Test
+    fun `the stt language is trimmed and lowercased`() {
+        val config = ConfigMapper.toConfig(Settings(sttLanguage = " DE "))
+        assertEquals("de", config.stt.language)
     }
 
     @Test

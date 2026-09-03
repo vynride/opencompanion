@@ -33,6 +33,7 @@ private object Keys {
     val authHeader = stringPreferencesKey("auth_header")
     val chatModel = stringPreferencesKey("chat_model")
     val transcribeModel = stringPreferencesKey("transcribe_model")
+    val sttLanguage = stringPreferencesKey("stt_language")
     val ttsModel = stringPreferencesKey("tts_model")
     val chatApi = stringPreferencesKey("chat_api")
     val chatBaseUrl = stringPreferencesKey("chat_base_url")
@@ -72,6 +73,7 @@ class SettingsRepository(
                 authHeader = prefs[Keys.authHeader] ?: "",
                 chatModel = prefs[Keys.chatModel] ?: "",
                 transcribeModel = prefs[Keys.transcribeModel] ?: "",
+                sttLanguage = prefs[Keys.sttLanguage] ?: "",
                 ttsModel = prefs[Keys.ttsModel] ?: "",
                 chatApi = prefs[Keys.chatApi] ?: "",
                 chatBaseUrl = prefs[Keys.chatBaseUrl] ?: "",
@@ -122,6 +124,8 @@ class SettingsRepository(
     suspend fun setChatModel(value: String) = update { it[Keys.chatModel] = value }
 
     suspend fun setTranscribeModel(value: String) = update { it[Keys.transcribeModel] = value }
+
+    suspend fun setSttLanguage(value: String) = update { it[Keys.sttLanguage] = value }
 
     suspend fun setTtsModel(value: String) = update { it[Keys.ttsModel] = value }
 

@@ -96,6 +96,11 @@ internal fun AiServicesPage(
             onChange = { scope.launch { repo.setTranscribeModel(it) } },
         )
         LabeledField(
+            label = stringResource(R.string.settings_stt_language),
+            value = settings.sttLanguage,
+            onChange = { scope.launch { repo.setSttLanguage(it) } },
+        )
+        LabeledField(
             label = stringResource(R.string.settings_tts_model),
             value = settings.ttsModel,
             onChange = { scope.launch { repo.setTtsModel(it) } },

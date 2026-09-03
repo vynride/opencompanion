@@ -66,6 +66,7 @@
     <string name="settings_auth_header">Auth header</string>
     <string name="settings_chat_model">Chat model</string>
     <string name="settings_transcribe_model">Transcribe model</string>
+    <string name="settings_stt_language">Transcribe language code</string>
     <string name="settings_tts_model">TTS model</string>
     <string name="settings_chat_api">API style</string>
 
