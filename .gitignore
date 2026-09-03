@@ -8,7 +8,19 @@ memory/journal/
 logs/
 phone-data/
 
-# python
+# gradle / android
+.gradle/
+build/
+bin/
+local.properties
+*.apk
+*.aab
+.kotlin/
+.idea/
+*.iml
+captures/
+
+# python (removed with the daemon later)
 __pycache__/
 *.pyc
 .venv/
@@ -17,3 +29,9 @@ __pycache__/
 # local notes and agent scratch
 .notes/
 .superpowers/
+
+# keyword models are CC BY-NC-SA licensed and must stay out of the repo
+models/wakeword/*.onnx
+
+# audio fixtures are personal voice recordings and stay local
+core/src/test/resources/*.wav

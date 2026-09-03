@@ -1,0 +1,155 @@
+// Copyright (C) 2026 Vivian Richard Demello (vynride)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+package io.github.vynride.opencompanion.core.wakeword
+
+import io.github.vynride.opencompanion.core.Log
+import io.github.vynride.opencompanion.core.RepoModelStore
+import io.github.vynride.opencompanion.core.audio.FRAME_MS
+import io.github.vynride.opencompanion.core.audio.FRAME_SAMPLES
+import io.github.vynride.opencompanion.core.audio.FrameBuffer
+import io.github.vynride.opencompanion.core.audio.Resampler
+import io.github.vynride.opencompanion.core.audio.parseWav
+import io.github.vynride.opencompanion.core.bus.EventBus
+import io.github.vynride.opencompanion.core.config.WakeWordConfig
+import io.github.vynride.opencompanion.core.vad.Vad
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.runTest
+import org.junit.jupiter.api.Assumptions.assumeTrue
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.extension
+import kotlin.io.path.name
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+
+class OpenWakeWordPipelineTest {
+    private val store = RepoModelStore()
+
+    private fun keywordFile(): String? = Path.of("..", "models", "wakeword").takeIf { Files.isDirectory(it) }?.let { dir ->
+        Files.list(dir).use { s -> s.filter { it.extension == "onnx" }.findFirst().orElse(null) }?.let { "wakeword/${it.name}" }
+    }
+
+    @Test
+    fun `features stream and scores stay in range on silence`() {
+        val kw = keywordFile()
+        assumeTrue(kw != null && store.has("melspectrogram.onnx") && store.has("embedding_model.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            repeat(40) {
+                val s = p.score(ShortArray(FRAME_SAMPLES))
+                assertTrue(s in 0f..1f, "score $s")
+            }
+        }
+    }
+
+    @Test
+    fun `reset gives the same score again for the same audio`() {
+        val kw = keywordFile()
+        assumeTrue(kw != null && store.has("melspectrogram.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            val frames = List(30) { i -> ShortArray(FRAME_SAMPLES) { ((i * 37 + it * 91) % 2000 - 1000).toShort() } }
+            val first = frames.map { p.score(it) }
+            p.reset()
+            val second = frames.map { p.score(it) }
+            assertEquals(first, second)
+        }
+    }
+
+    @Test
+    fun `the wake word fixture triggers and silence does not`() {
+        val kw = keywordFile()
+        val wav = javaClass.getResource("/wakeword-16k.wav")
+        assumeTrue(kw != null && wav != null && store.has("melspectrogram.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            val data = parseWav(wav!!.readBytes())
+            val samples = Resampler(data.rateHz, 16000).process(data.samples)
+            val peak = FrameBuffer(FRAME_SAMPLES).push(samples).maxOf { p.score(it) }
+            assertTrue(peak >= 0.5f, "peak score $peak")
+            p.reset()
+            val quiet = (1..40).maxOf { p.score(ShortArray(FRAME_SAMPLES)) }
+            assertTrue(quiet < 0.2f, "silence score $quiet")
+        }
+    }
+
+    // Regression: a gate that flaps mid-speech must not stop detection. Short gaps
+    // replay the parked frames from the ring and keep the predictor's context.
+    @Test
+    fun `the fixture still triggers through a flapping gate`() = runTest {
+        val kw = keywordFile()
+        val wav = javaClass.getResource("/wakeword-16k.wav")
+        assumeTrue(kw != null && wav != null && store.has("melspectrogram.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            val frames = fixtureFrames(wav!!.readBytes())
+            // shut for three frames out of every ten; the ring spans the gap
+            var index = 0
+            val gate =
+                object : Vad {
+                    override fun isSpeech(frame: ShortArray): Boolean = index % 10 < 7
+                }
+            var now = Duration.ZERO
+            val detector = detector(p, gate, backgroundScope) { now }
+            var peak = 0f
+            for (frame in frames) {
+                peak = maxOf(peak, detector.process(frame))
+                index++
+                now += FRAME_MS.milliseconds
+            }
+            assertTrue(peak >= 0.5f, "peak score $peak")
+        }
+    }
+
+    // A gap long enough to reset on reopen must still detect: the replayed ring
+    // completes the warmup and the utterance then streams contiguously.
+    @Test
+    fun `the fixture still triggers after a long parked gap`() = runTest {
+        val kw = keywordFile()
+        val wav = javaClass.getResource("/wakeword-16k.wav")
+        assumeTrue(kw != null && wav != null && store.has("melspectrogram.onnx"))
+        loadOpenWakeWord(store, kw!!).use { p ->
+            val frames = fixtureFrames(wav!!.readBytes())
+            var open = true
+            val gate =
+                object : Vad {
+                    override fun isSpeech(frame: ShortArray): Boolean = open
+                }
+            var now = Duration.ZERO
+            val detector = detector(p, gate, backgroundScope) { now }
+            suspend fun feed(frame: ShortArray): Float {
+                val s = detector.process(frame)
+                now += FRAME_MS.milliseconds
+                return s
+            }
+            // leading audio, then well over the reset gap of parked silence
+            for (frame in frames.take(10)) feed(frame)
+            open = false
+            repeat(60) { feed(ShortArray(FRAME_SAMPLES)) }
+            open = true
+            var peak = 0f
+            for (frame in frames) peak = maxOf(peak, feed(frame))
+            assertTrue(peak >= 0.5f, "peak score $peak")
+        }
+    }
+
+    private fun fixtureFrames(wavBytes: ByteArray): List<ShortArray> {
+        val data = parseWav(wavBytes)
+        return FrameBuffer(FRAME_SAMPLES).push(Resampler(data.rateHz, 16000).process(data.samples))
+    }
+
+    private fun detector(
+        p: WakePredictor,
+        gate: Vad,
+        scope: CoroutineScope,
+        clock: () -> Duration,
+    ) = WakeWordDetector(
+        EventBus(),
+        p,
+        WakeWordConfig(threshold = 0.5f, gateHoldS = 0.0),
+        { true },
+        gate,
+        Log.Stdout,
+        scope,
+        clock,
+    )
+}

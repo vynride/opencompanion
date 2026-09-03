@@ -26,3 +26,15 @@ jobs:
       # openwakeword has no wheel for Python 3.12+; the tests stub it
       - run: grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
       - run: .venv/bin/pytest -q
+
+  gradle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew spotlessCheck :core:test :app:testDebugUnitTest :app:lintDebug
