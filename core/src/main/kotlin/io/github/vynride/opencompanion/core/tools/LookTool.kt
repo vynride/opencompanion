@@ -31,7 +31,7 @@ fun lookTool(
             val question = args["question"]!!.jsonPrimitive.content
             val lens = if (args["camera"]?.jsonPrimitive?.content == "back") Lens.BACK else Lens.FRONT
             var jpeg = ByteArray(0)
-            // termux-camera-photo can return truncated or non-JPEG bytes; retry a few times.
+            // Camera capture can return truncated or non-JPEG bytes; retry a few times.
             for (attempt in 0 until 3) {
                 jpeg = camera.captureJpeg(lens)
                 if (isJpeg(jpeg)) break
