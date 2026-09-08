@@ -59,7 +59,6 @@ model is imported the companion stays idle; the settings stay reachable with a l
   model names
 - Chat, transcribe and speech can each use their own base URL, key and header
   instead of the defaults
-- A transcribe language code can be set; blank means English
 - The wake-word model is imported from a file in the settings
 - Quiet hours stop the companion on a daily schedule and start it again
   while the face is on screen
