@@ -1,0 +1,13 @@
+opencompanion turns a spare Android phone into a small desk companion. It
+listens for a wake word, answers with a voice, and shows an expressive face.
+
+It talks to any OpenAI-compatible API for speech recognition, the language
+model and the voice. Wake-word detection and voice-activity detection run
+entirely on the phone.
+
+The companion can look through the camera, remember facts across days, search
+the web, check the weather, set timers, and mirror notes to your laptop
+through KDE Connect.
+
+A wake-word model is not bundled; train your own with openWakeWord and import
+it in the settings.
