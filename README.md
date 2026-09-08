@@ -1,6 +1,6 @@
 # opencompanion
 
-A voice desk companion that runs on spare hardware.
+A voice desk companion that runs on a spare Android phone. No root required.
 
 It can:
 
@@ -17,91 +17,73 @@ The default companion is named Soc.
 
 ## How it works
 
-- The opencompanion daemon runs under Termux on a rooted Android phone
-- The face is a web page shown full screen in the phone's browser
+- opencompanion is a single Android app; the face fills the screen while a
+  foreground service listens for the wake word
 - Wake-word and voice-activity detection run on the phone
 - Speech-to-text, the language model and text-to-speech use an
   OpenAI-compatible API
-- Memory is markdown files on the phone
+- Memory is markdown files in the app's private storage
 
 ## Requirements
 
-- A rooted arm64 Android phone with Termux and Termux:API
+- An arm64 Android phone on Android 8.0 or newer
 - An OpenAI-compatible API with a chat model (tool calling, and image input
   for the camera), a transcription model and a speech model; an Exa key for
   web search is optional
-- A computer with Python 3.12+, rsync and ssh
+- A wake-word model file (see Wake word below)
 
 ## Install
 
-On the phone, in Termux:
+Download the latest APK from the releases page and install it, or build from
+source:
 
 ```
-pkg install openssh rsync
-sshd
+./gradlew :app:assembleRelease
 ```
 
-Add your computer's public key to `~/.ssh/authorized_keys` on the phone.
-Termux's sshd listens on port 8022.
+On first launch, grant the microphone permission, then open the settings with
+a long press on the face and fill in the API section.
 
-On the computer:
+Android does not let the app start listening by itself after a reboot; open
+the app once and everything resumes.
 
-```
-git clone https://github.com/vynride/opencompanion
-cd opencompanion
-OC_HOST=<user@phone> ./scripts/sync.sh
-```
+## Wake word
 
-On the phone, in `~/opencompanion`:
-
-```
-cp config.example.yaml config.yaml
-cp .env.example .env
-bash scripts/install-phone.sh
-python -m opencompanion.main
-```
-
-To start on boot, copy `scripts/opencompanion-service.sh` to
-`/data/adb/service.d/` as root and make it executable.
-
-`scripts/smoke.sh` checks the microphone, the face and the Python setup while
-the daemon is running.
+The app ships without a wake-word model. Train one with the openWakeWord
+training notebook, then import the `.onnx` file from the settings. Until a
+model is imported the companion only reacts to touch.
 
 ## Configuration
 
-- `config.yaml` for configuration; `config.example.yaml` lists every setting
-- `.env` for API keys
-- `memory/personality.md` for the companion's tone and personality
+- Everything is configured in the app's settings (long press on the face)
+- The AI section takes a base URL, API key, auth header choice and three
+  model names
+- Chat, transcribe and speech can each use their own base URL, key and header
+  instead of the defaults
+- A transcribe language code can be set, or left blank to detect the
+  language automatically
+- The wake-word model is imported from a file in the settings
+- Quiet hours stop the companion on a daily schedule and start it again
+  while the face is on screen
+- The personality is edited in a full-screen editor with presets
+
+## Laptop link
+
+Install KDE Connect on the phone and pair it with your computer. Notifications
+the companion posts are mirrored to the desktop. To let the companion read
+your laptop's notifications, enable notification access for opencompanion in
+the system settings.
 
 ## Development
 
-Create the venv:
-
 ```
-uv venv --python 3.12 .venv
-```
-
-Install dependencies (openwakeword only runs on the phone):
-
-```
-grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
+./gradlew :core:test :app:testDebugUnitTest
+./gradlew spotlessApply
+./gradlew :app:assembleDebug
 ```
 
-Run the tests:
-
-```
-.venv/bin/pytest -q
-```
-
-Lint and format:
-
-```
-.venv/bin/ruff check opencompanion tests
-.venv/bin/ruff format opencompanion tests
-```
-
-`python -m opencompanion.face_server --demo` shows the face in a desktop
-browser.
+The `core` module is pure JVM and holds all the logic; the `app` module holds
+the Android hardware adapters and UI.
 
 ## License
 
@@ -109,3 +91,6 @@ Copyright (C) 2026 Vivian Richard Demello (vynride)
 
 opencompanion is free software under the GNU Affero General Public License,
 version 3 or later. See [LICENSE](LICENSE).
+
+Bundled models: Silero VAD (MIT) and the openWakeWord feature models
+(Apache 2.0). See [models/README.md](models/README.md).
