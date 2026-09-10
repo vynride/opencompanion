@@ -6,28 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uvx ruff check opencompanion tests
-      - run: uvx ruff format --check opencompanion tests
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-          enable-cache: true
-      - run: uv venv
-      # openwakeword has no wheel for Python 3.12+; the tests stub it
-      - run: grep -v openwakeword requirements.txt | uv pip install -r /dev/stdin -r requirements-dev.txt
-      - run: .venv/bin/pytest -q
-
-  gradle:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,4 +16,4 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew spotlessCheck :core:test :app:testDebugUnitTest :app:lintDebug
+      - run: ./gradlew spotlessCheck :core:test :app:testDebugUnitTest :app:assembleDebug :app:lintDebug

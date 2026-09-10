@@ -1,13 +1,3 @@
-# secrets and per-device config
-.env
-config.yaml
-
-# runtime data
-memory/facts.md
-memory/journal/
-logs/
-phone-data/
-
 # gradle / android
 .gradle/
 build/
@@ -19,12 +9,6 @@ local.properties
 .idea/
 *.iml
 captures/
-
-# python (removed with the daemon later)
-__pycache__/
-*.pyc
-.venv/
-.pytest_cache/
 
 # local notes and agent scratch
 .notes/
